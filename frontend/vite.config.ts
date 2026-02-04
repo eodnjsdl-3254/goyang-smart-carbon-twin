@@ -1,9 +1,15 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react-swc'; // 속도 향상을 위해 SWC 플러그인 권장
 import cesium from 'vite-plugin-cesium';
+import path from 'path';
 
 export default defineConfig({
   plugins: [react(), cesium()],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
   server: {
     host: '0.0.0.0', 
     port: 5173,
