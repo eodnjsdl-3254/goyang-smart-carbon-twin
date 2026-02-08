@@ -1,2 +1,15 @@
-fastapi
-uvicorn
+# 1. Web Framework
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0  # standard를 붙여야 성능 좋은 uvloop가 설치됩니다.
+
+# 2. Database (PostgreSQL/PostGIS) & ORM
+sqlalchemy>=2.0.0          # 최신 ORM
+asyncpg>=0.29.0            # PostgreSQL 비동기 드라이버 (FastAPI 필수)
+geoalchemy2>=0.14.0        # PostGIS 공간 데이터 처리를 위한 라이브러리
+
+# 3. Validation & Settings
+pydantic>=2.6.0
+pydantic-settings>=2.1.0   # .env 환경변수 관리용
+
+# 4. Utilities
+python-dotenv>=1.0.1       # 로컬 개발시 .env 로딩

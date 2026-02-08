@@ -1,15 +1,20 @@
-export const convert3dsToGlb = async (files: File[]) => {
-  const formData = new FormData();
-  files.forEach((file) => formData.append('files', file));
+import type { LibraryItem } from '../types';
 
-  const res = await fetch('/api/convert', { // Vite Proxy를 타므로 전체 경로 불필요
-    method: 'POST',
-    body: formData,
-  });
+export const fetchBuildingLibrary = async (): Promise<LibraryItem[]> => {
+  const res = await fetch('/api/simulation/buildings'); 
+  if (!res.ok) throw new Error('라이브러리 로딩 실패');
+  
+  const rawData = await res.json();
 
-  if (!res.ok) {
-    throw new Error('변환 서버 오류');
-  }
-
-  return res.json(); // { url: string, filename: string } 반환 예상
+  return rawData.map((item: any) => ({
+    ...item,
+    // DB의 "/public/..." 앞에 "/files"를 붙여줍니다.
+    // 결과: "/files/public/3ds_model/..."
+    thumbnail: item.thumbnail ? `/files${item.thumbnail}` : undefined,
+    modelUrl: item.modelUrl ? `/files${item.modelUrl}` : undefined,
+    
+    defaultWidth: Number(item.defaultWidth) || 20,
+    defaultDepth: Number(item.defaultDepth) || 20,
+    defaultHeight: Number(item.defaultHeight) || 30,
+  }));
 };

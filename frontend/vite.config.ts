@@ -1,74 +1,46 @@
 import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react-swc'; // 속도 향상을 위해 SWC 플러그인 권장
+import react from '@vitejs/plugin-react-swc';
 import cesium from 'vite-plugin-cesium';
 import path from 'path';
 
+// https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react(), cesium()],
+  plugins: [
+    react(), 
+    cesium()
+  ],
   resolve: {
     alias: {
+      // '@'를 src 폴더의 절대 경로로 연결하여 경로 관리를 용이하게 합니다.
       '@': path.resolve(__dirname, './src'),
     },
   },
   server: {
+    // Nginx 컨테이너 등 외부에서 접근할 수 있도록 모든 네트워크 인터페이스를 허용합니다.
     host: '0.0.0.0', 
     port: 5173,
+    strictPort: true, // 설정된 포트가 이미 사용 중일 경우 에러를 내어 Nginx와의 포트 불일치를 방지합니다.
+    allowedHosts: true,
+    
     hmr: {
-      // Nginx(80)를 통해 접속하므로 HMR 소켓 포트를 80으로 고정합니다.
+      // 사용자는 Nginx(80포트)를 통해 접속하므로 브라우저의 웹소켓 연결 포트를 80으로 고정합니다.
       clientPort: 80 
     },
-    proxy: {
-      // 1. 내부 Backend (탄소 데이터 및 3D 변환)
-      '/api': {
-        target: 'http://gsct-backend:8000', // Docker 내부 네트워크 서비스명 사용
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ''),
-      },
-      // 2. 내부 GeoServer (공간 레이어)
-      '/geoserver': {
-        target: 'http://gsct-geoserver:8080',
-        changeOrigin: true,
-      },
-      // 3. VWorld API (행정구역/검색 API 등)
-      '/vworld-bin': {
-        target: 'https://api.vworld.kr',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/vworld-bin/, ''),
-        secure: false,
-        headers: {
-          'Referer': 'http://localhost/', // Nginx 게이트웨이 주소에 맞춤
-          'Origin': 'http://localhost'
-        }
-      },
-      // 4. VWorld 3D 데이터 (건물/지형 타일)
-      '/vworld-data': {
-        target: 'https://xdworld.vworld.kr',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/vworld-data/, ''),
-        secure: false,
-        configure: (proxy) => {
-          proxy.on('proxyReq', (proxyReq) => {
-            proxyReq.setHeader('Referer', 'https://map.vworld.kr/');
-            proxyReq.setHeader('Origin', 'https://map.vworld.kr');
-          });
-        }
-      },
-      // 5. OpenStreetMap 타일
-      '/osm-tiles': {
-        target: 'https://a.tile.openstreetmap.org',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/osm-tiles/, ''),
-        headers: {
-          'User-Agent': 'GSCT-DigitalTwin-Project/1.0'
-        }
-      }
+    
+    // Cross-Origin Resource Sharing을 허용하여 Nginx 프록시 환경에서 리소스 요청을 원활하게 합니다.
+    cors: true,
+    
+    // WSL2 환경에서 파일 변경 감지가 안 되는 문제를 해결하기 위해 폴링(Polling) 방식을 활성화합니다.
+    watch: {
+      usePolling: true,
     }
   },
   build: {
+    // Cesium과 같은 대용량 라이브러리 사용 시 발생하는 청크 사이즈 경고 수치를 조절합니다.
     chunkSizeWarningLimit: 2000,
     rollupOptions: {
       output: {
-        // 객체 형태 { cesium: ['cesium'] } 대신 함수형으로 작성하여 에러 해결
+        // Cesium 라이브러리를 별도의 파일로 분리하여 초기 로딩 성능을 최적화합니다.
         manualChunks: (id) => {
           if (id.includes('node_modules/cesium')) {
             return 'cesium';

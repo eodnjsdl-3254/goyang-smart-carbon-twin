@@ -1,32 +1,45 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { OverlayCard } from '@/components/ui';
 import { useGreeneryContext } from '../context/GreeneryContext';
 import * as turf from '@turf/turf';
 import { Cartographic, Math as CesiumMath } from 'cesium';
 
 export const GreenerySimulationPanel: React.FC = () => {
+  // 패널 열림/닫힘 상태 추가 (기본값 false)
+  const [isOpen, setIsOpen] = useState(false);
+
   const { 
     isDrawing, setIsDrawing, trees, settings, setSettings, 
     estimatedCarbon, drawingPoints, generateTrees, reset 
   } = useGreeneryContext();
 
-  // Turf를 이용한 정밀 면적 계산 로직 (완벽합니다)
   const area = useMemo(() => {
     if (drawingPoints.length < 3) return 0;
     const coords = drawingPoints.map(p => {
       const carto = Cartographic.fromCartesian(p);
       return [CesiumMath.toDegrees(carto.longitude), CesiumMath.toDegrees(carto.latitude)];
     });
-    // 폴리곤 폐합 (첫 점과 끝 점 일치)
     coords.push(coords[0]);
     return Math.round(turf.area(turf.polygon([coords])));
   }, [drawingPoints]);
+
+  // 🚨 [수정 2] 닫혀있을 때 플로팅 버튼 표시
+  if (!isOpen) {
+    return (
+      <button 
+        onClick={() => setIsOpen(true)}
+        className="absolute top-20 left-4 z-20 bg-green-600 text-white px-4 py-2 rounded-full shadow-lg font-bold hover:bg-green-700 transition-transform hover:scale-105 flex items-center gap-2 text-xs"
+      >
+        <span>🌿</span> 녹지 시뮬레이션
+      </button>
+    );
+  }
 
   return (
     <div className="absolute top-20 left-4 z-20">
       <OverlayCard 
         title="🌿 녹지 조성 시뮬레이션" 
-        onClose={() => setIsDrawing(false)} 
+        onClose={() => { setIsOpen(false); setIsDrawing(false); }} 
         className="w-72 shadow-2xl border-t-4 border-green-500"
       >
         <div className="space-y-4">
@@ -52,7 +65,6 @@ export const GreenerySimulationPanel: React.FC = () => {
 
           {area > 0 && (
             <div className="space-y-3 p-3 bg-gray-50/5 rounded-lg border border-white/5 animate-in fade-in zoom-in-95">
-              {/* ✅ [복구] 주석 처리되었던 슬라이더 로직을 다시 연결했습니다. */}
               <div className="space-y-2">
                 <div className="flex justify-between text-[10px] text-gray-300">
                   <span>🌲 침엽수 {Math.round(settings.coniferRatio * 100)}%</span>

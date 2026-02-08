@@ -1,91 +1,79 @@
-import { useState, useCallback } from 'react';
-import { useCesium } from 'resium';
-import type { SimMode, SimInputs, BuildingProps } from '../types';
-import { extractGlbDetails } from '../utils/glbParser';
-import { convertScenarioToGeoJSON, downloadGeoJSON } from '../utils/scenarioExport';
-import { convert3dsToGlb } from '../api/bldgApi';
+import { useState, useCallback, useMemo } from 'react';
+import type { SimMode, SimInputs, BuildingProps, LibraryItem } from '../types';
 
-export const useBldgSim = () => {  
-  useCesium(); 
-  
-  const [mode, setMode] = useState<SimMode>('CREATE');
+export const useBldgSim = (selectedLibItem: LibraryItem | null) => {
+  const [mode, setMode] = useState<SimMode>('VIEW'); 
   const [buildings, setBuildings] = useState<BuildingProps[]>([]);
-  const [inputs, setInputs] = useState<SimInputs>({
-    width: 20, depth: 20, height: 50, rotation: 0, scale: 1.0
-  });
-
-  const [pendingFile, setPendingFile] = useState<File | null>(null);
-  const [isConverting, setIsConverting] = useState(false);
-  const [convertedResult, setConvertedResult] = useState<{url: string, filename: string} | null>(null);
+  const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(null);
+  const [cursorPos, setCursorPos] = useState<{lat: number, lon: number} | null>(null);
+  const [inputs, setInputs] = useState<SimInputs>({ width: 20, depth: 20, height: 30 });
 
   const updateInput = (key: keyof SimInputs, value: number) => {
     setInputs(prev => ({ ...prev, [key]: value }));
   };
 
-  const handleConversion = async (files: File[]) => {
-    if (files.length === 0) return;
-    setIsConverting(true);
-    try {
-      const data = await convert3dsToGlb(files);
-      setConvertedResult(data);
-    } catch (e) {
-      alert('변환 중 오류가 발생했습니다.');
-      console.error(e);
-    } finally {
-      setIsConverting(false);
-    }
-  };
+  const updateBuilding = useCallback((id: string, updates: Partial<BuildingProps>) => {
+    setBuildings(prev => prev.map(b => b.id === id ? { ...b, ...updates } : b));
+  }, []);
 
-  const handleMapClick = useCallback(async (coords: { lat: number; lon: number }) => {
-    if (mode === 'CREATE') {
-      // missing originalWidth, originalDepth, originalHeight 추가
-      const newBox: BuildingProps = {
-        id: crypto.randomUUID(),
-        ...coords,
-        ...inputs,
-        isModel: false,
-        // 박스의 경우 현재 입력값이 곧 원본 크기가 됩니다.
-        originalWidth: inputs.width,
-        originalDepth: inputs.depth,
-        originalHeight: inputs.height
-      };
-      setBuildings(prev => [...prev, newBox]);
-    } 
-    else if (mode === 'UPLOAD' && pendingFile) {
-      const analysis = await extractGlbDetails(pendingFile);
-      // missing originalWidth, originalDepth, originalHeight 추가
-      const newModel: BuildingProps = {
-        id: crypto.randomUUID(),
-        ...coords,
-        ...inputs,
-        isModel: true,
-        modelUrl: URL.createObjectURL(pendingFile),
-        rootNodeName: analysis.geometry.rootNodeName,
-        // GLB 분석 결과에서 얻은 실제 모델의 크기를 원본 크기로 저장합니다.
-        originalWidth: analysis.geometry.width,
-        originalDepth: analysis.geometry.depth,
-        originalHeight: analysis.geometry.height
-      };
-      setBuildings(prev => [...prev, newModel]);
-      setPendingFile(null);
+  const handleMapClick = useCallback((coords: { lat: number; lon: number }, pickedId?: string) => {
+    if (mode === 'VIEW') return;
+    if (mode === 'IDLE') {
+       setSelectedBuildingId(pickedId || null);
+       return;
     }
-  }, [mode, inputs, pendingFile]);
+    if (mode === 'RELOCATE' && selectedBuildingId) {
+       updateBuilding(selectedBuildingId, { lat: coords.lat, lon: coords.lon });
+       setMode('IDLE');
+       return;
+    }
 
-  // convertScenarioToGeoJSON 사용 및 매개변수 불일치 해결
-  const exportScenario = useCallback((name: string = "GSCT_Scenario") => {
-    if (buildings.length === 0) {
-      alert("배치된 건물이 없습니다.");
-      return;
+    if ((mode === 'LIBRARY' && selectedLibItem) || mode === 'CREATE') {
+      const isModel = mode === 'LIBRARY';
+      const newBldg: BuildingProps = {
+        id: crypto.randomUUID(),
+        name: isModel ? selectedLibItem!.name : "Custom Box",
+        ...coords,
+        rotation: 0, altitude: 0, isModel,
+        modelUrl: isModel ? selectedLibItem!.modelUrl : undefined,
+        width: isModel ? (selectedLibItem!.defaultWidth || 10) : inputs.width,
+        depth: isModel ? (selectedLibItem!.defaultDepth || 10) : inputs.depth,
+        height: isModel ? (selectedLibItem!.defaultHeight || 10) : inputs.height,
+        scaleX: 1.0, scaleY: 1.0, scaleZ: 1.0, 
+      };
+      setBuildings(prev => [...prev, newBldg]);
+      setSelectedBuildingId(newBldg.id);
+      setMode('IDLE');
+      setCursorPos(null);
     }
-    // 이 훅은 건물만 관리하므로 trees 자리에는 빈 배열([])을 넘겨줍니다.
-    const geoJson = convertScenarioToGeoJSON(buildings, [], name);
-    downloadGeoJSON(geoJson, name);
-  }, [buildings]);
+  }, [mode, inputs, selectedLibItem, selectedBuildingId, updateBuilding]);
+
+  const ghostBuilding = useMemo(() => {
+    if (!cursorPos || mode === 'VIEW' || mode === 'IDLE' || mode === 'RELOCATE') return null;
+    const isLib = mode === 'LIBRARY' && selectedLibItem;
+    return {
+      id: 'ghost',
+      name: isLib ? selectedLibItem.name : 'Preview Box',
+      isModel: isLib,
+      modelUrl: isLib ? selectedLibItem.modelUrl : undefined,
+      ...cursorPos,
+      rotation: 0, altitude: 0,
+      scaleX: 1.0, scaleY: 1.0, scaleZ: 1.0,
+      width: isLib ? (selectedLibItem.defaultWidth || 10) : inputs.width,
+      depth: isLib ? (selectedLibItem.defaultDepth || 10) : inputs.depth,
+      height: isLib ? (selectedLibItem.defaultHeight || 10) : inputs.height,
+    } as BuildingProps;
+  }, [cursorPos, mode, selectedLibItem, inputs]);
 
   return {
-    mode, setMode, buildings, inputs, updateInput,
-    pendingFile, setPendingFile, isConverting,
-    handleConversion, convertedResult, handleMapClick,
-    exportScenario, totalCount: buildings.length
+    mode, setMode, buildings, updateBuilding, handleMapClick, 
+    handleMouseMove: (c: any) => (mode !== 'VIEW' && mode !== 'IDLE') && setCursorPos(c),
+    cursorPos, ghostBuilding,
+    selectedBuilding: buildings.find(b => b.id === selectedBuildingId) || null,
+    setSelectedBuildingId, 
+    selectBuildingObj: setSelectedBuildingId,
+    inputs, updateInput,
+    removeBuilding: (id: string) => setBuildings(prev => prev.filter(b => b.id !== id)),
+    finishEditing: () => { setSelectedBuildingId(null); setMode('VIEW'); setCursorPos(null); }
   };
 };
