@@ -13,12 +13,13 @@ export const BldgSimPanel: React.FC = () => {
     inputs, updateInput, 
     buildings,
     libraryItems, selectedLibItem, selectBuilding, isLoading, error,
-    selectedBuilding, updateBuilding, removeBuilding, finishEditing 
+    selectedBuilding, updateBuilding, removeBuilding, finishEditing,
+    rotation, setRotation 
   } = useBldgContext();
 
   const { trees } = useGreeneryContext();
 
-  // 실제 치수 계산 로직 (BldgInfoCard와 동일하게 적용)
+  // 실제 치수 계산 로직
   const getCalculatedDim = (axis: 'X' | 'Y' | 'Z') => {
     if (!selectedBuilding) return "0.0";
     const original = axis === 'X' ? selectedBuilding.originalWidth : axis === 'Y' ? selectedBuilding.originalDepth : selectedBuilding.originalHeight;
@@ -73,6 +74,7 @@ export const BldgSimPanel: React.FC = () => {
             </div>
 
             <div className="space-y-3">
+              {/* 편집 모드 회전 슬라이더 */}
               <div className="space-y-1">
                 <div className="flex justify-between text-[10px] text-gray-500 font-bold"><span>🔄 회전</span><span>{Math.round(selectedBuilding.rotation || 0)}°</span></div>
                 <input type="range" min="0" max="360" step="1" className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
@@ -81,6 +83,7 @@ export const BldgSimPanel: React.FC = () => {
                 />
               </div>
 
+              {/* 편집 모드 고도 슬라이더 */}
               <div className="space-y-1">
                 <div className="flex justify-between text-[10px] text-gray-500 font-bold"><span>🛫 고도</span><span>{selectedBuilding.altitude || 0}m</span></div>
                 <input type="range" min="-10" max="100" step="1" className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-green-600"
@@ -173,11 +176,19 @@ export const BldgSimPanel: React.FC = () => {
                  ) : (
                    <div className="grid grid-cols-3 gap-2 max-h-[220px] overflow-y-auto p-1 scrollbar-hide">
                      {libraryItems.map((item: LibraryItem) => (
-                       <div 
-                        key={item.id} 
-                        onClick={() => selectBuilding(item)} 
-                        className={`group cursor-pointer p-2 rounded-lg border transition-all ${selectedLibItem?.id === item.id ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' : 'bg-white border-gray-100 hover:border-blue-300 hover:shadow-sm'}`}
-                       >
+                          <div 
+                            key={item.id} 
+                            onClick={() => {
+                              selectBuilding(item); // 1. 아이템 데이터 선택 (selectedLibItem 업데이트)
+                              setMode('LIBRARY');    // 2. 모드를 라이브러리 배치 모드로 명시적 전환
+                            }} 
+                            className={`group cursor-pointer p-2 rounded-lg border transition-all ${
+                              // 모드와 아이템이 모두 맞아야 시각적으로 활성화 표시
+                              (mode === 'LIBRARY' && selectedLibItem?.id === item.id) 
+                                ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' 
+                                : 'bg-white border-gray-100'
+                            }`}
+                          >
                           <div className="h-10 bg-gray-50 rounded mb-1 flex items-center justify-center overflow-hidden group-hover:scale-105 transition-transform">
                              {item.thumbnail ? <img src={item.thumbnail} className="w-full h-full object-cover" alt={item.name}/> : <span className="text-lg">🏢</span>}
                           </div>
@@ -229,6 +240,19 @@ export const BldgSimPanel: React.FC = () => {
                       />
                       <span className="absolute right-2 top-2 text-[9px] text-gray-300">m</span>
                     </div>
+                 </div>
+                 {/* 배치 대기 중 실시간 회전 슬라이더 */}
+                 <div className="space-y-1">
+                    <div className="flex justify-between text-[9px] text-gray-400 font-bold">
+                        <span>배치 회전각 (ROTATION)</span>
+                        <span className="text-blue-600">{Math.round(rotation || 0)}°</span>
+                    </div>
+                    <input 
+                      type="range" min="0" max="360" step="1" 
+                      className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                      value={rotation || 0}
+                      onChange={(e) => setRotation(Number(e.target.value))} 
+                    />
                  </div>
                  <div className="bg-indigo-50 p-2 rounded-lg flex items-center gap-2">
                     <span className="animate-pulse">🖱️</span>
