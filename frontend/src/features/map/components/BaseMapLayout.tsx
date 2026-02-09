@@ -15,7 +15,7 @@ import { BldgSimPanel } from '@/features/bldg/components/BldgSimPanel';
 import { BldgInfoCard } from '@/features/bldg/components/BldgInfoCard';
 import { BldgProvider, useBldgContext } from '@/features/bldg/context/BldgContext';
 import { GreeneryLayer } from '@/features/green-space/components/GreeneryLayer';
-import { GreenerySimulationPanel } from '@/features/green-space/components/GreenerySimulationPanel';
+import { GreenerySimPanel} from '@/features/green-space/components/GreenerySimPanel';
 import { GreeneryProvider, useGreeneryContext } from '@/features/green-space/context/GreeneryContext';
 
 const CESIUM_TOKEN = import.meta.env.VITE_CESIUM_TOKEN;
@@ -271,7 +271,7 @@ const MapContainer: React.FC<{ children?: React.ReactNode }> = ({ children }) =>
         />
         <GreeneryLayer trees={greenery.trees} drawingPoints={greenery.drawingPoints} />
       </Viewer>
-      <MapControlBar /><BldgSimPanel /><BldgInfoCard /><GreenerySimulationPanel />
+      <MapControlBar /><BldgSimPanel /><BldgInfoCard /><GreenerySimPanel />
     </div>
   );
 };

@@ -4,6 +4,7 @@ export type SimMode = 'IDLE' | 'LIBRARY' | 'CREATE' | 'RELOCATE' | 'VIEW';
 export interface LibraryItem {
   id: string;
   name: string;
+  category?: string;
   modelUrl: string;
   thumbnail?: string;
   defaultWidth: number;
