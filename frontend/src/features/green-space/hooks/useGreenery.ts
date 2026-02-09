@@ -1,183 +1,130 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
-import { Cartesian3, Cartographic, Math as CesiumMath } from 'cesium';
+import { 
+  Cartesian3, Cartographic, Math as CesiumMath, 
+  Transforms, HeadingPitchRoll 
+} from 'cesium';
 import * as turf from '@turf/turf';
-import { fetchBuildingLibrary } from '../../bldg/api/bldgApi'; 
-import type { TreeItem, TreeConfig, LibraryItem } from '../types'; 
-// [추가] 방금 만든 유틸리티 import
-import { getGlbDimensions } from '../utils/glibUtils'; 
+import { useCesium } from 'resium'; 
+import { fetchGreeneryLibrary } from '../api/greeneryApi'; 
+import type { TreeItem, TreeConfig, GreeneryModel, TreeSpec } from '../types'; 
+import { getGlbDimensions } from '../utils/glbUtils'; 
 
 export const useGreenery = () => {
+  const { viewer } = useCesium();
   const [isDrawing, setIsDrawing] = useState(false);
   const [drawingPoints, setDrawingPoints] = useState<Cartesian3[]>([]);
   const [trees, setTrees] = useState<TreeItem[]>([]);
+  const [settings, setSettings] = useState({ coniferRatio: 0.5, density: 0.8 });
   
-  // 1. 나무 모델 설정
   const [treeModels, setTreeModels] = useState<TreeConfig>({
-    conifer: { mlid: 143, url: null, width: 5.0, area: 25.0, loaded: false },
-    deciduous: { mlid: 148, url: null, width: 5.0, area: 25.0, loaded: false }
+    conifer: { mlid: 143, url: null, width: 3.0, depth: 3.0, area: 9.0, loaded: false },
+    deciduous: { mlid: 148, url: null, width: 5.0, depth: 5.0, area: 25.0, loaded: false }
   });
 
-  const [settings, setSettings] = useState({
-    coniferRatio: 0.5,
-    density: 0.5,
-  });
+  const cId = treeModels.conifer.mlid;
+  const dId = treeModels.deciduous.mlid;
 
-  // 2. 백엔드 모델 정보 가져오기 + [추가] GLB 크기 분석
   useEffect(() => {
-    let isMounted = true; 
-
+    if (!viewer) return;
     const loadModels = async () => {
       try {
-        const items: LibraryItem[] = await fetchBuildingLibrary();
-        if (!isMounted) return;
+        const items: GreeneryModel[] = await fetchGreeneryLibrary();
+        const cData = items.find(i => Number(i.id) === cId);
+        const dData = items.find(i => Number(i.id) === dId);
 
-        // DB 매칭
-        const coniferItem = items.find(i => Number(i.id) === 143 || i.category === 'conifer' || i.name.includes('pine'));
-        const deciduousItem = items.find(i => Number(i.id) === 148 || i.category === 'deciduous' || i.name.includes('oak'));
-
-        // [핵심] GLB 파일이 있다면 다운로드해서 실제 크기 측정
-        const updateModelSpec = async (item: LibraryItem | undefined, currentConfig: any) => {
-            if (!item || !item.modelUrl) return currentConfig;
-
-            let realWidth = item.defaultWidth || 5.0;
-            let realArea = realWidth * (item.defaultDepth || 5.0);
-
-            // GLB URL이 있으면 실제 크기 분석 시도
-            if (item.modelUrl) {
-                const dims = await getGlbDimensions(item.modelUrl);
-                if (dims) {
-                    realWidth = dims.width;
-                    realArea = dims.area; // (width * depth)
-                }
-            }
-
-            return {
-                ...currentConfig,
-                mlid: Number(item.id),
-                url: item.modelUrl,
-                width: realWidth,
-                area: realArea, // [변경] 실제 GLB 면적 반영
-                loaded: true
-            };
+        const analyze = async (model: GreeneryModel | undefined, current: TreeSpec): Promise<TreeSpec> => {
+          if (!model?.modelUrl) return current;
+          const url = model.modelUrl.replace(/\/public\/public\//g, '/public/').replace(/\/files\/public\//g, '/files/');
+          try {
+            const dims = await getGlbDimensions(url, viewer);
+            const w = dims?.width || current.width;
+            const d = dims?.depth || current.depth;
+            return { ...current, url, width: w, depth: d, area: w * d, loaded: true };
+          } catch {
+            return { ...current, url, loaded: true };
+          }
         };
 
-        // 병렬로 스펙 업데이트
-        const newConifer = await updateModelSpec(coniferItem, treeModels.conifer);
-        const newDeciduous = await updateModelSpec(deciduousItem, treeModels.deciduous);
-
-        if (isMounted) {
-            setTreeModels({
-                conifer: newConifer,
-                deciduous: newDeciduous
-            });
-        }
-
-      } catch (e) {
-        console.error("❌ 나무 모델 로드 실패:", e);
-      }
+        const [newC, newD] = await Promise.all([analyze(cData, treeModels.conifer), analyze(dData, treeModels.deciduous)]);
+        setTreeModels({ conifer: newC, deciduous: newD });
+      } catch (e) { console.error("🌲 모델 로드 실패:", e); }
     };
-
     loadModels();
-    return () => { isMounted = false; };
-  }, []); // 의존성 배열 비움 (최초 1회 실행)
+  }, [viewer, cId, dId]);
 
-  // 3. 면적 계산
   const polygonArea = useMemo(() => {
     if (drawingPoints.length < 3) return 0;
     const coords = drawingPoints.map(p => {
-      const carto = Cartographic.fromCartesian(p);
-      return [CesiumMath.toDegrees(carto.longitude), CesiumMath.toDegrees(carto.latitude)];
+      const c = Cartographic.fromCartesian(p);
+      return [CesiumMath.toDegrees(c.longitude), CesiumMath.toDegrees(c.latitude)];
     });
-    if (coords.length > 0 && (coords[0][0] !== coords[coords.length-1][0] || coords[0][1] !== coords[coords.length-1][1])) {
-        coords.push(coords[0]);
-    }
-    return Math.round(turf.area(turf.polygon([coords])));
+    coords.push(coords[0]);
+    return turf.area(turf.polygon([coords]));
   }, [drawingPoints]);
 
-  // 4. 최대 식재 가능 수량 계산 (실제 면적 반영)
   const maxCapacity = useMemo(() => {
     if (polygonArea <= 0) return 0;
-    
-    const buffer = 0.5; // 나무 간 여유 공간 (m)
-    
-    // [변경] 단순 너비 제곱이 아니라 분석된 area(가로*세로)를 사용
-    // 모델 면적 + 여유공간(버퍼) 고려: (루트(면적) + buffer)^2 형태로 근사하거나
-    // 간단하게 area + (perimeter * buffer) 처럼 할 수 있지만,
-    // 여기서는 (width + buffer) * (depth + buffer) 방식으로 계산
-    
-    // conifer.area는 이미 width * depth 값임.
-    // 정사각형이라 가정하고 한변 길이 유추: Math.sqrt(area)
-    const coniferSide = Math.sqrt(treeModels.conifer.area);
-    const deciduousSide = Math.sqrt(treeModels.deciduous.area);
-
-    const coniferUnitArea = (coniferSide + buffer) * (coniferSide + buffer);
-    const deciduousUnitArea = (deciduousSide + buffer) * (deciduousSide + buffer);
-    
-    const avgUnitArea = (coniferUnitArea * settings.coniferRatio) + 
-                        (deciduousUnitArea * (1 - settings.coniferRatio));
-    
-    // 식재 효율 (Packing Factor): 75%
-    const packingFactor = 0.75;
-    
-    return Math.floor((polygonArea * packingFactor) / avgUnitArea);
-  }, [polygonArea, settings.coniferRatio, treeModels]);
-
-  // ... (나머지 estimatedCarbon, generateTrees 등은 기존 코드 유지) ...
-  // 기존 코드 그대로 복사해서 하단부 채워주세요. (estimatedCarbon, generateTrees, reset, return)
-  
-  // 5. 예상 탄소 흡수량
-  const estimatedCarbon = useMemo(() => {
-    const currentCount = Math.floor(maxCapacity * settings.density);
-    const coniferCount = Math.floor(currentCount * settings.coniferRatio);
-    const deciduousCount = currentCount - coniferCount;
-    return (coniferCount * 12.0) + (deciduousCount * 8.0);
-  }, [maxCapacity, settings.density, settings.coniferRatio]);
+    const avgArea = (treeModels.conifer.area + treeModels.deciduous.area) / 2;
+    return Math.floor(polygonArea / (avgArea || 25));
+  }, [polygonArea, treeModels]);
 
   const generateTrees = useCallback(() => {
-    if (drawingPoints.length < 3) return;
+    if (drawingPoints.length < 3 || !viewer) return;
+
     const coords = drawingPoints.map(p => {
-      const carto = Cartographic.fromCartesian(p);
-      return [CesiumMath.toDegrees(carto.longitude), CesiumMath.toDegrees(carto.latitude)];
+      const c = Cartographic.fromCartesian(p);
+      return [CesiumMath.toDegrees(c.longitude), CesiumMath.toDegrees(c.latitude)];
     });
-    if (coords.length > 0 && (coords[0][0] !== coords[coords.length-1][0])) coords.push(coords[0]);
+    coords.push(coords[0]);
+    const poly = turf.polygon([coords]);
+    const bbox = turf.bbox(poly);
 
-    const turfPoly = turf.polygon([coords]);
-    const bbox = turf.bbox(turfPoly);
-    const targetCount = Math.floor(maxCapacity * settings.density);
-    const coniferTarget = Math.floor(targetCount * settings.coniferRatio);
+    const avgWidth = (treeModels.conifer.width + treeModels.deciduous.width) / 2;
+    const spacing = Math.max(1.5, avgWidth / Math.max(0.1, settings.density * 1.2)); 
+    const grid = turf.pointGrid(bbox, spacing / 1000, { units: 'kilometers' });
     
-    const newTrees: TreeItem[] = [];
-    let attempts = 0;
-    const maxAttempts = targetCount * 30;
+    // 💡 ID 일치 필수: GreeneryLayer의 Polygon ID와 같아야 함
+    const polyEntity = viewer.entities.getById('greenery-poly');
+    const exclude = polyEntity ? [polyEntity] : [];
 
-    while (newTrees.length < targetCount && attempts < maxAttempts) {
-      attempts++;
-      const batch = turf.randomPoint(Math.min(50, targetCount - newTrees.length + 10), { bbox: bbox });
-      for (const feature of batch.features) {
-        if (turf.booleanPointInPolygon(feature, turfPoly)) {
-          const [lon, lat] = feature.geometry.coordinates;
-          const isConifer = newTrees.length < coniferTarget;
-          const modelData = isConifer ? treeModels.conifer : treeModels.deciduous;
+    const pointsInside = grid.features.filter(f => turf.booleanPointInPolygon(f, poly));
+    
+    const newTrees: TreeItem[] = pointsInside.slice(0, 3000).map((f, i): TreeItem => {
+        const isConifer = Math.random() < settings.coniferRatio; 
+        const model = isConifer ? treeModels.conifer : treeModels.deciduous;
+        const [lon, lat] = f.geometry.coordinates;
 
-          newTrees.push({
-            position: Cartesian3.fromDegrees(lon, lat),
-            type: isConifer ? 'CONIFER' : 'DECIDUOUS',
-            modelUrl: modelData.url || '',
-            scale: 1.0 
-          });
-          if (newTrees.length >= targetCount) break;
-        }
-      }
-    }
+        const jitter = (spacing * 0.3) / 111320;
+        const fLon = lon + (Math.random() - 0.5) * jitter;
+        const fLat = lat + (Math.random() - 0.5) * jitter;
+
+        // ✅ 해결: sampleHeight는 Cartographic 타입을 인자로 받음
+        const cartoPos = Cartographic.fromDegrees(fLon, fLat); 
+        const height = viewer.scene.sampleHeight(cartoPos, exclude); 
+        
+        // 최종 배치는 Cartesian3로 변환
+        const finalPos = Cartesian3.fromDegrees(fLon, fLat, height || 0);
+        
+        const hpr = new HeadingPitchRoll(Math.random() * CesiumMath.TWO_PI, 0, 0);
+        return {
+          id: `tree-${i}-${Date.now()}`,
+          position: finalPos,
+          type: isConifer ? 'CONIFER' : 'DECIDUOUS',
+          modelUrl: model.url || "",
+          scale: 0.8 + Math.random() * 0.5,
+          orientation: Transforms.headingPitchRollQuaternion(finalPos, hpr)
+        };
+      }).filter(t => t.modelUrl !== "");
+
     setTrees(newTrees);
     setIsDrawing(false);
-  }, [drawingPoints, maxCapacity, settings, treeModels]);
+  }, [drawingPoints, settings, treeModels, viewer]);
 
-  const reset = useCallback(() => {
-    setTrees([]);
-    setDrawingPoints([]);
-    setIsDrawing(false);
-  }, []);
-
-  return { isDrawing, setIsDrawing, drawingPoints, setDrawingPoints, trees, generateTrees, settings, setSettings, estimatedCarbon, reset, polygonArea, maxCapacity, treeModels };
+  return { 
+    isDrawing, setIsDrawing, drawingPoints, setDrawingPoints, 
+    trees, generateTrees, settings, setSettings, 
+    polygonArea, maxCapacity, treeModels, 
+    estimatedCarbon: useMemo(() => (trees.length * 10.0), [trees]),
+    reset: () => { setTrees([]); setDrawingPoints([]); setIsDrawing(false); } 
+  };
 };

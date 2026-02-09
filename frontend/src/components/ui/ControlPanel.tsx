@@ -1,20 +1,15 @@
 import React from 'react';
 
-interface Props {
-  children: React.ReactNode;
-}
-
-export const ControlPanel: React.FC<Props> = ({ children }) => {
+export const ControlPanel: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
     <div style={{
-      display: "flex",
-      gap: "8px",
-      padding: "8px",
-      backgroundColor: "rgba(255, 255, 255, 0.9)", // 반투명 흰색
-      borderRadius: "8px",
-      boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
-      backdropFilter: "blur(4px)", // 블러 효과
-      alignItems: "center"
+      display: "flex", gap: "6px", padding: "6px 12px",
+      backgroundColor: "rgba(9, 9, 11, 0.9)", // 깊은 블랙
+      borderRadius: "14px",
+      boxShadow: "0 10px 30px rgba(0, 0, 0, 0.6)",
+      backdropFilter: "blur(20px)",
+      alignItems: "center",
+      border: "1px solid rgba(255, 255, 255, 0.1)"
     }}>
       {children}
     </div>
