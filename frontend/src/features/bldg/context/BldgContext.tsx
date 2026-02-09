@@ -2,17 +2,19 @@ import React, { createContext, useContext } from 'react';
 import { useBldgSim } from '../hooks/useBldgSim';
 import { useBldgLibrary } from '../hooks/useBldgLibrary';
 
-const BldgContext = createContext<any>(null);
+// [Tip] Hook들의 반환 타입을 자동으로 추론하여 합칩니다.
+// 이렇게 하면 Hook에서 새로운 기능을 추가해도 Context 타입을 일일이 수정할 필요가 없습니다.
+type LibraryType = ReturnType<typeof useBldgLibrary>;
+type SimType = ReturnType<typeof useBldgSim>;
+type BldgContextType = LibraryType & SimType;
+
+// any 대신 정확한 타입을 지정합니다.
+const BldgContext = createContext<BldgContextType | null>(null);
 
 export const BldgProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // 1. 라이브러리 훅 (건물 목록, 선택)
   const library = useBldgLibrary();
-
-  // 2. 시뮬레이션 훅 (배치, 편집, 삭제 등 모든 로직 포함)
-  //    라이브러리에서 선택된 아이템(selectedLibItem)을 주입받습니다.
   const bldgSim = useBldgSim(library.selectedLibItem);
 
-  // 3. 컨텍스트 값 통합
   const value = {
     ...library,
     ...bldgSim,

@@ -1,10 +1,11 @@
 import os
 import uuid
-from typing import List, Optional
+from datetime import datetime  # [수정] 날짜 처리를 위해 추가
+from typing import List, Optional, Dict, Any # [수정] Dict, Any 추가
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from sqlalchemy import Column, Integer, String, BigInteger, select
+from sqlalchemy import Column, Integer, String, BigInteger, select, JSON, DateTime, func
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
@@ -22,21 +23,32 @@ async def get_db():
         yield session
 
 # --- [2. DB 모델 정의 (ORM)] ---
-# 제공해주신 DDL(cbn.tbd_simlatn_model_info)과 매핑
+
+# 2-1. 모델(라이브러리) 정보 테이블
 class SimModelInfo(Base):
     __tablename__ = "tbd_simlatn_model_info"
-    __table_args__ = {"schema": "cbn"}  # 스키마 지정 필수
+    __table_args__ = {"schema": "cbn"} 
 
     mlid = Column(BigInteger, primary_key=True, index=True)
-    model_type = Column(String)       # 건물 용도 등
-    model_save_file_url = Column(String) # GLB 파일 URL
-    thumb_save_url = Column(String)      # 썸네일 URL
-    model_org_file_name = Column(String) # 원본 파일명 (이름으로 사용)
-    
-    # DB에 없는 필드는 API에서 기본값 처리하거나 컬럼 추가 필요
-    # 현재는 DB에 없으므로 매핑 생략
+    model_type = Column(String)       
+    model_save_file_url = Column(String) 
+    thumb_save_url = Column(String)      
+    model_org_file_name = Column(String) 
+
+# 2-2. 시나리오(Scene) 정보 테이블
+class SimSceneInfo(Base):
+    __tablename__ = "tbd_simlatn_scene_info"
+    __table_args__ = {"schema": "cbn"}
+
+    scene_id = Column(BigInteger, primary_key=True, index=True, autoincrement=True)
+    scene_name = Column(String(200), nullable=False)
+    scene_data = Column(JSON, nullable=False) # Postgres JSONB 타입 매핑
+    user_id = Column(String(50), default="guest")
+    reg_date = Column(DateTime, default=func.now()) # 현재 시간 자동 입력
+
 
 # --- [3. Pydantic 스키마 (프론트엔드 응답용)] ---
+
 class LibraryItemResponse(BaseModel):
     id: str
     name: str
@@ -46,6 +58,22 @@ class LibraryItemResponse(BaseModel):
     defaultWidth: float
     defaultDepth: float
     defaultHeight: float
+
+# [복구] 시나리오 저장 요청 DTO
+class SceneCreateRequest(BaseModel):
+    scene_name: str
+    user_id: Optional[str] = "guest"
+    scene_data: Dict[str, Any] 
+
+# [복구] 시나리오 목록 응답 DTO
+class SceneListResponse(BaseModel):
+    scene_id: int
+    scene_name: str
+    user_id: str
+    reg_date: datetime
+
+    class Config:
+        from_attributes = True
 
 # 기존 요청 데이터 모델들
 class BuildingSimRequest(BaseModel):
@@ -113,6 +141,141 @@ async def get_building_library(db: AsyncSession = Depends(get_db)):
         print(f"❌ DB Error: {e}")
         # DB가 비어있거나 에러가 나도 프론트엔드가 죽지 않게 빈 배열 반환 (또는 500 에러)
         return []
+
+
+# =========================================================
+# 시나리오(Scene) 관련 API
+# =========================================================
+
+# 4-1. 시나리오 저장 (GeoJSON 저장)
+@app.post("/scenes", response_model=Dict[str, Any])
+async def create_scene(req: SceneCreateRequest, db: AsyncSession = Depends(get_db)):
+    """
+    프론트엔드에서 구성한 GeoJSON(건물+녹지)을 DB에 저장합니다.
+    """
+    try:
+        new_scene = SimSceneInfo(
+            scene_name=req.scene_name,
+            user_id=req.user_id,
+            scene_data=req.scene_data # Pydantic Dict -> JSONB 자동 변환
+        )
+        
+        db.add(new_scene)
+        await db.commit()
+        await db.refresh(new_scene) # 생성된 scene_id를 가져오기 위해 리프레시
+        
+        return {
+            "status": "success",
+            "scene_id": new_scene.scene_id,
+            "message": "시나리오가 성공적으로 저장되었습니다."
+        }
+    except Exception as e:
+        await db.rollback()
+        print(f"❌ Scene Save Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# 4-2. 시나리오 목록 조회
+@app.get("/scenes", response_model=List[SceneListResponse])
+async def get_scene_list(db: AsyncSession = Depends(get_db)):
+    """
+    저장된 시나리오 목록을 날짜 내림차순으로 조회합니다. (상세 데이터 제외)
+    """
+    try:
+        # scene_data 컬럼은 무거우므로 제외하고 조회하는 것이 효율적이나, 
+        # ORM에서는 deferred 로딩 설정을 안했으면 다 가져옵니다. 
+        # 간단하게 전체 조회 후 Pydantic(SceneListResponse)이 필터링하게 합니다.
+        stmt = select(SimSceneInfo).order_by(SimSceneInfo.reg_date.desc())
+        result = await db.execute(stmt)
+        scenes = result.scalars().all()
+        return scenes
+    except Exception as e:
+        print(f"❌ Scene List Error: {e}")
+        return []
+
+# 4-3. 시나리오 상세 조회 (Load & Inject URL)
+@app.get("/scenes/{scene_id}")
+async def get_scene_detail(scene_id: int, db: AsyncSession = Depends(get_db)):
+    """
+    특정 시나리오를 불러옵니다.
+    [중요] 저장된 GeoJSON의 features를 순회하며 mlid에 해당하는 modelUrl을 DB에서 찾아 주입합니다.
+    """
+    try:
+        # 1. 시나리오 조회
+        stmt = select(SimSceneInfo).where(SimSceneInfo.scene_id == scene_id)
+        result = await db.execute(stmt)
+        scene = result.scalar_one_or_none()
+
+        if not scene:
+            raise HTTPException(status_code=404, detail="Scene not found")
+
+        # GeoJSON 데이터 복사 (원본 수정 방지)
+        geojson_data = dict(scene.scene_data) 
+        
+        # 2. GeoJSON 내부에서 필요한 mlid(모델 ID) 추출
+        features = geojson_data.get("features", [])
+        mlid_set = set()
+        
+        for feature in features:
+            props = feature.get("properties", {})
+            # 'mlid'가 존재하고 값이 있는 경우 수집
+            if "mlid" in props and props["mlid"]:
+                try:
+                    mlid_set.add(int(props["mlid"]))
+                except:
+                    pass
+
+        # 3. 추출한 ID들에 대한 모델 정보(URL) 일괄 조회 (Bulk Query)
+        model_url_map = {}
+        if mlid_set:
+            model_stmt = select(SimModelInfo).where(SimModelInfo.mlid.in_(mlid_set))
+            model_result = await db.execute(model_stmt)
+            models = model_result.scalars().all()
+            
+            # ID -> URL 매핑 생성
+            for m in models:
+                # DB에 저장된 경로가 절대 경로인지 상대 경로인지에 따라 처리
+                # 예: /files/tree.glb -> http://localhost/files/tree.glb
+                # (프론트엔드 상황에 맞춰 도메인/포트 처리 필요, 여기선 DB값 그대로 사용 가정하거나 예시처럼 처리)
+                url = m.model_save_file_url
+                if url and not url.startswith("http"):
+                     # 로컬 개발 환경 예시 (Nginx 또는 Static Mount 필요)
+                     # 실제 운영환경에 맞게 수정 필요
+                     url = f"http://localhost/files{url}" if url.startswith("/") else f"http://localhost/files/{url}"
+                
+                model_url_map[m.mlid] = url
+
+        # 4. GeoJSON에 modelUrl 주입 (Data Hydration)
+        for feature in features:
+            props = feature.get("properties", {})
+            m_id = props.get("mlid")
+            
+            if m_id:
+                try:
+                    m_id_int = int(m_id)
+                    if m_id_int in model_url_map:
+                        props["modelUrl"] = model_url_map[m_id_int]
+                        # feature 업데이트
+                        feature["properties"] = props
+                except:
+                    continue
+        
+        # 업데이트된 GeoJSON 반환
+        geojson_data["features"] = features
+        
+        return {
+            "scene_id": scene.scene_id,
+            "scene_name": scene.scene_name,
+            "reg_date": scene.reg_date,
+            "scene_data": geojson_data
+        }
+
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        print(f"❌ Scene Load Error: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail="Failed to load scene")
 
 @app.post("/simulation/green")
 async def simulate_green_space(req: GreenSimRequest):
