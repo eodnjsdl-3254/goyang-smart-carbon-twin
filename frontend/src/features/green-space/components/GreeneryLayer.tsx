@@ -11,7 +11,8 @@ export const GreeneryLayer: React.FC = () => {
   const { viewer } = useCesium();
   const { 
     trees, drawingPoints, setDrawingPoints, 
-    isDrawing, setIsDrawing, generateTrees 
+    isDrawing, setIsDrawing
+    // generateTrees는 여기서 쓰지 않습니다 (패널 버튼으로만 실행)
   } = useGreeneryContext();
   
   const [mousePos, setMousePos] = useState<Cartesian3 | null>(null);
@@ -32,18 +33,22 @@ export const GreeneryLayer: React.FC = () => {
     const handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
     handlerRef.current = handler;
 
+    // 더블클릭 줌 방지
     viewer.screenSpaceEventHandler.removeInputAction(ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
       
+    // [클릭] 점 추가
     handler.setInputAction((click: any) => {
         const pos = viewer.scene.pickPosition(click.position) || viewer.camera.pickEllipsoid(click.position);
         if (pos) setDrawingPoints(prev => [...prev, pos]);
     }, ScreenSpaceEventType.LEFT_CLICK);
 
+    // [이동] 가이드라인 업데이트
     handler.setInputAction((move: any) => {
         const pos = viewer.scene.pickPosition(move.endPosition) || viewer.camera.pickEllipsoid(move.endPosition);
         if (pos) setMousePos(pos);
     }, ScreenSpaceEventType.MOUSE_MOVE);
 
+    // [더블클릭] 그리기 종료 (이때 isDrawing = false가 되면서 텍스처 폴리곤이 나타남)
     handler.setInputAction(() => {
         setIsDrawing(false);
         setMousePos(null);
@@ -57,19 +62,15 @@ export const GreeneryLayer: React.FC = () => {
     };
   }, [viewer, isDrawing, setIsDrawing, setDrawingPoints]);
 
-  // 2. 자동 생성 트리거
-  useEffect(() => {
-    if (!isDrawing && drawingPoints.length >= 3 && trees.length === 0) {
-      console.log("🖱️ 그리기 종료 -> 나무 생성 시작");
-      generateTrees();
-    }
-  }, [isDrawing, drawingPoints, trees.length, generateTrees]);
+  /* ❌ [삭제됨] 자동 생성 트리거 
+     이제 더블클릭 해도 바로 나무가 생기지 않습니다.
+     사용자가 패널에서 [배치 실행] 버튼을 눌러야 생성됩니다.
+  */
 
   const linePositions = new CallbackProperty(() => {
     return (isDrawing && mousePos && drawingPoints.length > 0) ? [...drawingPoints, mousePos] : drawingPoints;
   }, false);
 
-  
   if (!viewer) return null;
 
   return (
@@ -81,43 +82,58 @@ export const GreeneryLayer: React.FC = () => {
         </Entity>
       ))}
 
-      {/* 🟡 가이드 라인 */}
+      {/* 🟡 가이드 라인 (그리는 중일 때만) */}
       {isDrawing && drawingPoints.length > 0 && (
         <Entity>
           <PolylineGraphics positions={linePositions} width={3} material={Color.YELLOW} clampToGround={true} />
         </Entity>
       )}
 
-      {/* 🟩 녹지 영역 */}
-      {!isDrawing && drawingPoints.length >= 3 && (
-        <Entity id="greenery-poly">
+      {/* 🟩 임시 폴리곤 (그리는 중: 연두색) */}
+      {isDrawing && drawingPoints.length >= 3 && (
+        <Entity>
            <PolygonGraphics 
              hierarchy={new PolygonHierarchy(drawingPoints)} 
-             material={Color.FORESTGREEN.withAlpha(0.4)} 
+             material={Color.LIMEGREEN.withAlpha(0.5)} 
              classificationType={ClassificationType.BOTH} 
            />
         </Entity>
       )}
 
-      {/* 🌳 나무 모델 렌더링 (이미지 삭제됨, 8000m까지 모델 표시) */}
+      {/* 🌿 텍스처 폴리곤 (완료 후: 텍스처) */}
+      {/* 여기서 영역만 먼저 보여주고, 나무는 아직 생성되지 않음 */}
+      {!isDrawing && drawingPoints.length >= 3 && (
+        <Entity id="greenery-poly-texture">
+           <PolygonGraphics 
+             hierarchy={new PolygonHierarchy(drawingPoints)} 
+             material={new ImageMaterialProperty({
+                image: "/green/texture1.png",
+                transparent: true,
+                repeat: new Cartesian2(20, 20),
+                color: Color.WHITE.withAlpha(0.8)
+             })}
+             classificationType={ClassificationType.BOTH} 
+           />
+        </Entity>
+      )}
+
+      {/* 🌳 나무 모델 (버튼 클릭 후 생성된 trees 데이터가 있을 때만 렌더링) */}
       {trees.map((tree) => (
         <Entity 
             key={tree.id} 
             position={tree.position} 
             orientation={tree.orientation} 
         >
-          {/* 모델이 있을 때만 렌더링 */}
           {tree.modelUrl && (
              <ModelGraphics
                 uri={tree.modelUrl}
-                scale={tree.scale}
+                scale={tree.scale} 
                 heightReference={HeightReference.CLAMP_TO_GROUND}
                 shadows={ShadowMode.ENABLED}
-                // ✅ [수정완료] 0 ~ 8000m까지 모델이 보입니다.
-                distanceDisplayCondition={new DistanceDisplayCondition(0, 8000)}
+                // 0 ~ 4000m 가시거리
+                distanceDisplayCondition={new DistanceDisplayCondition(0, 4000)}
               />
           )}
-          {/* ❌ [삭제됨] BillboardGraphics가 제거되어 더 이상 이미지 에러가 발생하지 않습니다. */}
         </Entity>
       ))}
     </>

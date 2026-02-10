@@ -70,14 +70,14 @@ export const BldgSimPanel: React.FC = () => {
       onClick={() => setIsOpen(true)}
       className="absolute bottom-8 right-4 z-20 bg-zinc-900/90 text-white px-5 py-3 rounded-full shadow-2xl font-bold hover:bg-zinc-800 transition-all border border-white/10 backdrop-blur-md flex items-center gap-2"
     >
-      <span className="text-lg">🏗️</span> <span className="text-xs">시뮬레이터 열기</span>
+      <span className="text-lg">🏗️</span> <span className="text-xs">건물 배치 시뮬레이터</span>
     </button>
   );
 
   return (
     <div className="absolute bottom-8 right-4 z-20">
       <OverlayCard 
-        title={selectedBuilding ? "✏️ 건물 속성 편집" : "🏗️ 시뮬레이션 관리"}
+        title={selectedBuilding ? "✏️ 건물 속성 편집" : "🏗️ 건물 배치 시뮬레이션"}
         onClose={() => { setIsOpen(false); finishEditing(); }} 
         className="w-80 shadow-2xl border-t-4 border-blue-500 bg-zinc-950/95 backdrop-blur-xl text-zinc-100"
       >

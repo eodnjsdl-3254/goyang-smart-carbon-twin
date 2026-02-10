@@ -45,8 +45,8 @@ export const GreenerySimPanel: React.FC = () => {
               <span className={treeModels.conifer.loaded ? "text-green-400" : "text-yellow-500"}>{treeModels.conifer.loaded ? "✅ 완료" : "⚠️ 기본값"}</span>
             </div>
             <p className="flex justify-between border-t border-white/5 pt-1 mt-1">
-              <span>🌲 침엽수: {treeModels.conifer.width.toFixed(1)}m</span>
-              <span>🌳 활엽수: {treeModels.deciduous.width.toFixed(1)}m</span>
+              <span>🌲 침엽수: {(treeModels.conifer.width * treeModels.conifer.depth).toFixed(1)}m² (폭 {treeModels.conifer.width}m)</span>
+              <span>🌳 활엽수: {(treeModels.deciduous.width * treeModels.deciduous.depth).toFixed(1)}m² (폭 {treeModels.deciduous.width}m)</span>
             </p>
           </div>
 
