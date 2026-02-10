@@ -21,52 +21,49 @@ import { GreeneryProvider, useGreeneryContext } from '@/features/green-space/con
 const CESIUM_TOKEN = import.meta.env.VITE_CESIUM_TOKEN;
 Ion.defaultAccessToken = CESIUM_TOKEN;
 
+// 1. 이벤트 핸들러 (좌표 픽킹 및 모드별 동작)
 const MapEventHandler = () => {
   const { viewer } = useCesium();
-  const { handleMapClick, handleMouseMove, selectBuildingObj, mode, setSelectedBuildingId } = useBldgContext();
+  // ✅ Context에서 필요한 함수만 가져옴 (selectBuildingObj 삭제됨)
+  const { handleMapClick, handleMouseMove, mode, setSelectedBuildingId } = useBldgContext();
   const greenery = useGreeneryContext();
 
-  // 🛠️ [핵심] Ghost 간섭 없는 완벽한 좌표 추출 함수
+  // 안전한 좌표 추출 (Ghost 떨림 방지)
   const getSafePickPosition = useCallback((position: any) => {
       if (!viewer) return null;
-      
-      // 1. 레이(Ray) 생성: 카메라에서 마우스 위치로 쏘는 광선
       const ray = viewer.camera.getPickRay(position);
       if (!ray) return null;
-
-      // 2. 지형(Globe)과 충돌하는 지점 계산
-      // 이 방식은 화면에 그려진 박스(Entity)나 모델을 완전히 무시하고
-      // 오직 '땅(Terrain)'의 좌표만 가져오므로 위치 밀림이 발생하지 않습니다.
-      const cartesian = viewer.scene.globe.pick(ray, viewer.scene);
-
-      return cartesian;
+      return viewer.scene.globe.pick(ray, viewer.scene);
   }, [viewer]);
 
   const onLeftClick = useCallback((movement: any) => {
     if (!viewer) return;
 
+    // [IDLE 모드] 객체 선택 로직
     if (mode === 'IDLE') {
       const pickedObject = viewer.scene.pick(movement.position);
       
       if (pickedObject) {
-         let pickedId = null;
-         if (pickedObject.id instanceof Entity) {
-             pickedId = pickedObject.id.id; 
-         } else if (typeof pickedObject.id === 'string') {
-             pickedId = pickedObject.id;
-         } else if (pickedObject.primitive && typeof pickedObject.primitive.id === 'string') {
-             pickedId = pickedObject.primitive.id;
-         }
+          let pickedId = null;
+          if (pickedObject.id instanceof Entity) {
+              pickedId = pickedObject.id.id; 
+          } else if (typeof pickedObject.id === 'string') {
+              pickedId = pickedObject.id;
+          } else if (pickedObject.primitive && typeof pickedObject.primitive.id === 'string') {
+              pickedId = pickedObject.primitive.id;
+          }
 
-         if (pickedId && typeof pickedId === 'string' && !pickedId.includes('ghost')) {
-            selectBuildingObj(pickedId); 
+          // Ghost가 아닌 실제 건물만 선택
+          if (pickedId && typeof pickedId === 'string' && !pickedId.includes('ghost')) {
+            setSelectedBuildingId(pickedId); // ✅ 올바른 함수 사용
             return; 
-         }
+          }
       }
+      // 빈 곳 클릭 시 선택 해제 (단, 녹지 그리기 중엔 해제 안 함)
       if (!greenery.isDrawing) setSelectedBuildingId(null);
     }
 
-    // 🛠️ 수정된 안전 좌표 함수 사용
+    // [공통] 좌표 클릭 로직
     const cartesian = getSafePickPosition(movement.position);
     
     if (cartesian) {
@@ -74,20 +71,19 @@ const MapEventHandler = () => {
       const lat = CesiumMath.toDegrees(cartographic.latitude);
       const lon = CesiumMath.toDegrees(cartographic.longitude);
       
-      // 높이는 0으로 고정하거나 지형 높이 사용 (여기선 위도/경도만 전달)
       if (greenery.isDrawing) {
-         const height = cartographic.height;
-         greenery.setDrawingPoints((prev: Cartesian3[]) => [...prev, Cartesian3.fromDegrees(lon, lat, height)]);
+          const height = cartographic.height;
+          greenery.setDrawingPoints((prev: Cartesian3[]) => [...prev, Cartesian3.fromDegrees(lon, lat, height)]);
       } else if (mode !== 'VIEW' && mode !== 'IDLE') {
-         handleMapClick({ lat, lon }); 
+          handleMapClick({ lat, lon }); // 건물 배치/이동 확정
       }
     }
-  }, [viewer, mode, handleMapClick, selectBuildingObj, setSelectedBuildingId, greenery, getSafePickPosition]);
+  }, [viewer, mode, handleMapClick, setSelectedBuildingId, greenery, getSafePickPosition]);
 
   const onMouseMove = useCallback((movement: any) => {
     if (!viewer) return;
+    // 생성, 라이브러리, 이동 모드일 때만 좌표 업데이트 (Ghost 이동용)
     if (mode === 'LIBRARY' || mode === 'CREATE' || mode === 'RELOCATE') {
-        // 🛠️ 마우스 이동 시에도 레이캐스팅 좌표 사용 -> Ghost가 마우스 따라다닐 때 떨림 방지
         const cartesian = getSafePickPosition(movement.endPosition);
         if (cartesian) {
             const cartographic = Cartographic.fromCartesian(cartesian);
@@ -107,12 +103,10 @@ const MapEventHandler = () => {
   );
 };
 
-// ... (MapController, OsmBuildingsManager는 변경 없음 - 기존 코드 유지)
-
+// 2. 맵 컨트롤러 (카메라 이동 등)
 const MapController = () => {
   const { viewer } = useCesium();
   const { cameraTarget } = useMapContext();
-
   useEffect(() => {
     if (viewer && cameraTarget.ts > 0) {
       viewer.camera.flyTo({ 
@@ -121,24 +115,19 @@ const MapController = () => {
       });
     }
   }, [cameraTarget, viewer]);
-
-  useEffect(() => { 
-    if (viewer) viewer.scene.globe.depthTestAgainstTerrain = true; 
-  }, [viewer]);
-
+  useEffect(() => { if (viewer) viewer.scene.globe.depthTestAgainstTerrain = true; }, [viewer]);
   return null;
 };
 
+// 3. OSM 빌딩 매니저
 const OsmBuildingsManager: React.FC<{ terrainProvider: TerrainProvider }> = ({ terrainProvider }) => {
   const { viewer } = useCesium();
   const VISIBLE_HEIGHT_THRESHOLD = 3000; 
-
   useEffect(() => {
     if (!viewer || !terrainProvider) return;
     let osmTileset: Cesium3DTilesetClass | null = null;
     let isMounted = true; 
     let removeListener: (() => void) | undefined;
-
     const loadOsm = async () => {
       try {
         const primitives = viewer.scene.primitives;
@@ -146,37 +135,28 @@ const OsmBuildingsManager: React.FC<{ terrainProvider: TerrainProvider }> = ({ t
           const p = primitives.get(i);
           if (p instanceof Cesium3DTilesetClass && (p as any)._url?.includes('osm')) return;
         }
-
         osmTileset = await createOsmBuildingsAsync({
           defaultColor: Color.WHITE,
-          style: new Cesium3DTileStyle({
-            color: { conditions: [["true", "color('white', 1.0)"]] }
-          })
+          style: new Cesium3DTileStyle({ color: { conditions: [["true", "color('white', 1.0)"]] } })
         });
-
         if (!isMounted || viewer.isDestroyed()) return; 
         viewer.scene.primitives.add(osmTileset);
-
         const centerCartesian = osmTileset.boundingSphere.center;
         const centerCartographic = Cartographic.fromCartesian(centerCartesian);
         const [terrainSample] = await sampleTerrainMostDetailed(terrainProvider, [centerCartographic]);
-
         if (terrainSample && isMounted && osmTileset) {
           const surface = Cartesian3.fromRadians(centerCartographic.longitude, centerCartographic.latitude, 0.0);
           const offset = Cartesian3.fromRadians(centerCartographic.longitude, centerCartographic.latitude, terrainSample.height);
           const translation = Cartesian3.subtract(offset, surface, new Cartesian3());
           osmTileset.modelMatrix = Matrix4.fromTranslation(translation);
         }
-
         removeListener = viewer.scene.preRender.addEventListener(() => {
             if (!osmTileset || osmTileset.isDestroyed()) return;
             const cameraHeight = viewer.camera.positionCartographic.height;
             osmTileset.show = cameraHeight < VISIBLE_HEIGHT_THRESHOLD;
         });
-
       } catch (e) { console.error("❌ OSM 로드 실패:", e); }
     };
-
     loadOsm();
     return () => {
         isMounted = false;
@@ -184,15 +164,16 @@ const OsmBuildingsManager: React.FC<{ terrainProvider: TerrainProvider }> = ({ t
         if (viewer && !viewer.isDestroyed() && osmTileset) viewer.scene.primitives.remove(osmTileset);
     };
   }, [viewer, terrainProvider]); 
-
   return null;
 };
 
+// 4. 메인 맵 컨테이너
 const MapContainer: React.FC<{ children?: React.ReactNode }> = ({ children }) => {
-  const { buildings, selectedBuilding, cursorPos, mode, selectedLibItem, inputs, updateBuilding, rotation } = useBldgContext();
-  const greenery = useGreeneryContext(); 
   const { currentBaseMap, showVWorld3D, vworldKey } = useMapContext();
   const [terrainProvider, setTerrainProvider] = useState<TerrainProvider | undefined>(undefined);
+
+  // ✅ 불필요한 useBldgContext(), useGreeneryContext() 호출 제거
+  // (여기서 데이터를 쓰지 않고, 자식 컴포넌트인 Layer들이 직접 Context에서 가져다 씀)
 
   useEffect(() => {
     if (!CESIUM_TOKEN) return;
@@ -219,35 +200,6 @@ const MapContainer: React.FC<{ children?: React.ReactNode }> = ({ children }) =>
     return provider;
   }, [currentBaseMap, vworldKey]);
 
-  // Ghost Building (미리보기) 구성
-  const ghostBuilding = useMemo(() => {
-      if (!cursorPos) return null;
-
-      if (mode === 'LIBRARY' && selectedLibItem) {
-          return {
-              id: 'ghost-library', 
-              name: selectedLibItem.name,
-              lat: 0, lon: 0, 
-              rotation: rotation, 
-              isModel: true, modelUrl: selectedLibItem.modelUrl,
-              width: selectedLibItem.defaultWidth || 10, depth: selectedLibItem.defaultDepth || 10, height: selectedLibItem.defaultHeight || 10, 
-              altitude: 0, scaleX: 1.0, scaleY: 1.0, scaleZ: 1.0, originalHeight: selectedLibItem.defaultHeight
-          };
-      } else if (mode === 'CREATE') {
-          return {
-              id: 'ghost-box', 
-              name: "Custom Box", 
-              lat: 0, lon: 0, 
-              rotation: rotation, 
-              ...inputs, 
-              altitude: 0, scaleX: 1.0, scaleY: 1.0, scaleZ: 1.0
-          };
-      } else if (mode === 'RELOCATE' && selectedBuilding) {
-          return selectedBuilding;
-      }
-      return null;
-  }, [mode, selectedLibItem, inputs, selectedBuilding, rotation, cursorPos]); 
-
   return (
     <div className="relative w-full h-screen">
       <Viewer 
@@ -262,20 +214,22 @@ const MapContainer: React.FC<{ children?: React.ReactNode }> = ({ children }) =>
 
         {children}
         
-        <BldgLayer 
-           buildings={buildings} 
-           selectedId={selectedBuilding ? selectedBuilding.id : null}
-           cursorPos={cursorPos}
-           ghostBuilding={ghostBuilding as any}
-           onUpdateBuilding={updateBuilding} 
-        />
-        <GreeneryLayer trees={greenery.trees} drawingPoints={greenery.drawingPoints} />
+        {/* ✅ 레이어 컴포넌트: Props 없이 렌더링
+          BldgLayer 내부에서 useBldgContext()를 호출하여 ghostBuilding 정보를 직접 가져옵니다.
+        */}
+        <BldgLayer />
+        <GreeneryLayer />
+
       </Viewer>
-      <MapControlBar /><BldgSimPanel /><BldgInfoCard /><GreenerySimPanel />
+      <MapControlBar />
+      <BldgSimPanel />
+      <BldgInfoCard />
+      <GreenerySimPanel />
     </div>
   );
 };
 
+// 5. Providers 래퍼
 export const BaseMapLayout: React.FC<{ children?: React.ReactNode }> = ({ children }) => {
   return (
     <MapProvider>

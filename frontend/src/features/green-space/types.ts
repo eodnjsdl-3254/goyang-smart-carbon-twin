@@ -1,8 +1,15 @@
 import { Cartesian3, Quaternion } from 'cesium';
 
+// =========================================================
+// 🌲 녹지(Greenery) 전용 타입
+// =========================================================
+
 export interface GreeneryModel {
   id: string | number;
-  modelUrl: string;
+  name?: string;
+  category?: string;
+  thumbnail?: string;
+  modelUrl?: string;
 }
 
 export interface TreeSpec {
@@ -20,10 +27,10 @@ export interface TreeConfig {
 }
 
 export interface TreeItem {
-  id: string;          // 리액트 key 및 식별용
+  id: string;
   position: Cartesian3;
   type: 'CONIFER' | 'DECIDUOUS';
   modelUrl: string;
   scale: number;
-  orientation: Quaternion; // 나무의 회전값
+  orientation: Quaternion;
 }

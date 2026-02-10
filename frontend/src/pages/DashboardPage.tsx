@@ -1,15 +1,31 @@
 import React from 'react';
-import { BaseMapLayout } from '@/features/map'; // 껍데기 (Viewer + UI)
-import { BldgLayer } from '@/features/bldg';    // 알맹이 (3D 콘텐츠)
+import { BaseMapLayout } from '@/features/map';
+import { BldgLayer } from '@/features/bldg';
+import { BldgProvider } from '@/features/bldg/context/BldgContext';
+import { BldgSimPanel } from '@/features/bldg/components/BldgSimPanel';
 
+// 녹지 관련
+import { GreeneryLayer } from '@/features/green-space/components/GreeneryLayer';
+import { GreeneryProvider } from '@/features/green-space/context/GreeneryContext';
+import { GreenerySimPanel } from '@/features/green-space/components/GreenerySimPanel';
+
+// ✅ Wrapper 불필요 (이제 간단하게 바로 사용 가능)
 const DashboardPage: React.FC = () => {
   return (
-    // BaseMapLayout이 Viewer를 제공하고, 그 안에 children으로 3D 요소들을 배치합니다.
     <BaseMapLayout>
-      {/* 여기에 3D 레이어들을 위젯처럼 추가합니다 */}
-      <BldgLayer />
       
-      {/* 나중에 녹지 레이어가 생기면 여기에 추가: <GreenZoneLayer /> */}
+      {/* 건물 */}
+      <BldgProvider>
+         <BldgLayer />
+         <BldgSimPanel />
+      </BldgProvider>
+
+      {/* ✅ 녹지: viewer prop 없이 깔끔하게 사용 */}
+      <GreeneryProvider>
+         <GreeneryLayer />
+         <GreenerySimPanel />
+      </GreeneryProvider>
+      
     </BaseMapLayout>
   );
 };

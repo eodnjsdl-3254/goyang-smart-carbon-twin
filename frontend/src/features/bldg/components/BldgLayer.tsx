@@ -7,6 +7,7 @@ import {
   Entity, ColorMaterialProperty,
   Cartographic, CallbackProperty
 } from 'cesium';
+import { useBldgContext } from '../context/BldgContext';
 import type { BuildingProps } from '../types';
 
 const LAY_CONFIG = {
@@ -335,18 +336,23 @@ const BuildingPrimitive: React.FC<BuildingPrimitiveProps> = ({
   return null;
 };
 
-export const BldgLayer: React.FC<{
-  buildings: BuildingProps[];
-  selectedId: string | null;
-  cursorPos: { lat: number; lon: number } | null;
-  ghostBuilding: BuildingProps | null;
-  onUpdateBuilding?: (id: string, updates: Partial<BuildingProps>) => void;
-}> = ({ buildings = [], selectedId, cursorPos, ghostBuilding, onUpdateBuilding }) => {
+export const BldgLayer: React.FC = () => {
   const { viewer } = useCesium();
+  
+  // 1. Props 대신 Context에서 상태 가져오기
+  const { 
+    buildings, 
+    selectedId, 
+    cursorPos, 
+    ghostBuilding, 
+    updateBuilding // onUpdateBuilding 대신 updateBuilding (Context 네이밍에 맞춤)
+  } = useBldgContext(); 
+
   if (!viewer) return null;
 
   return (
     <>
+      {/* 실제 배치된 건물들 */}
       {buildings.map((b) => (
         <BuildingPrimitive 
           key={b.id} 
@@ -354,13 +360,17 @@ export const BldgLayer: React.FC<{
           scene={viewer.scene} 
           isSelected={b.id === selectedId} 
           isGhost={false} 
-          onSizeDetected={(u) => onUpdateBuilding?.(b.id, u)} 
+          // Context의 update 함수 연결
+          onSizeDetected={(updates) => updateBuilding?.(b.id, updates)} 
           viewer={viewer} 
         />
       ))}
+
+      {/* 마우스 따라다니는 고스트(배치 전) 건물 */}
       {cursorPos && ghostBuilding && (
         <BuildingPrimitive 
           key="ghost-fixed-key"
+          // ghostBuilding에 현재 커서 위치(lat, lon) 덮어씌우기
           building={{ ...ghostBuilding, ...cursorPos }} 
           scene={viewer.scene} 
           isSelected={false} 
