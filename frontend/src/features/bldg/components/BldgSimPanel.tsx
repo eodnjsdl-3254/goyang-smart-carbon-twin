@@ -144,7 +144,7 @@ export const BldgSimPanel: React.FC = () => {
                             <span className="text-zinc-600 ml-1 font-normal">({getCalculatedDim(item.axis)}m)</span>
                           </span>
                         </div>
-                        <input type="range" min="0.1" max="10" step="0.1" className={`w-full h-1 bg-zinc-800 ${item.color} rounded-lg appearance-none cursor-pointer`}
+                        <input type="range" min="0.1" max="100" step="0.1" className={`w-full h-1 bg-zinc-800 ${item.color} rounded-lg appearance-none cursor-pointer`}
                           value={selectedBuilding[item.key as keyof BuildingProps] as number ?? 1}
                           onChange={(e) => updateBuilding(selectedBuilding.id, { [item.key]: Number(e.target.value) })}
                         />
