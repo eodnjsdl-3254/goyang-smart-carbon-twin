@@ -1,17 +1,24 @@
 import React from 'react';
 import { OverlayCard } from '@/components/ui';
-import { useBldgContext } from '../context/BldgContext';
+import { useBldgContext } from '../../context/BldgContext';
 
 export const BldgInfoCard: React.FC = () => {
   const { selectedBuilding, setSelectedBuildingId } = useBldgContext();
   
   if (!selectedBuilding) return null;
 
-  // 실제 화면 크기 계산 함수
-  const calculateDim = (original: number | undefined, scale: number | undefined, fallback: number) => {
+  const calculateDim = (
+    original: number | undefined, 
+    scale: number | undefined, 
+    fallback: number | undefined 
+  ) => {
+    // 모델이 아니면 fallback(입력값) 사용.
     if (!selectedBuilding.isModel) return (fallback || 0).toFixed(1);
+    
+    // 모델인데 원본 치수가 없으면 "..." 표시
     if (original === undefined) return "..."; 
-    // LAY_CONFIG.MODEL_FIX를 1.0으로 맞췄으므로 배율만 곱합니다.
+    
+    // 모델이면 (원본 * 스케일) 계산
     return (original * (scale ?? 1)).toFixed(1);
   };
 

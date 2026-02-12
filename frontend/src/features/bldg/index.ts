@@ -1,5 +1,5 @@
-export { BldgLayer } from './components/BldgLayer';
-export { BldgInfoCard } from './components/BldgInfoCard';
-export { BldgSimPanel } from './components/BldgSimPanel';
-export { BuildingTag } from './components/BuildingTag';
-export { useBldgSim } from './hooks/useBldgSim';
+export { BldgLayer } from './components/layer/BldgLayer';
+export { BldgInfoCard } from './components/overlay/BldgInfoCard';
+export { BldgSimPanel } from './components/panel/BldgSimPanel';
+export { BuildingTag } from './components/overlay/BuildingTag';
+export { useBldgSim } from './hooks/logic/useBldgSim';

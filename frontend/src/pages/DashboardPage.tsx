@@ -2,7 +2,7 @@ import React from 'react';
 import { BaseMapLayout } from '@/features/map';
 import { BldgLayer } from '@/features/bldg';
 import { BldgProvider } from '@/features/bldg/context/BldgContext';
-import { BldgSimPanel } from '@/features/bldg/components/BldgSimPanel';
+import { BldgSimPanel } from '@/features/bldg/components/panel/BldgSimPanel';
 
 // 녹지 관련
 import { GreeneryLayer } from '@/features/green-space/components/GreeneryLayer';

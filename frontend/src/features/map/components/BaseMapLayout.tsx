@@ -10,10 +10,17 @@ import {
 
 import { MapControlBar } from '@/features/map/components/MapControlBar'; 
 import { useMapContext, MapProvider } from '@/features/map/context/MapContext';
-import { BldgLayer } from '@/features/bldg/components/BldgLayer';
-import { BldgSimPanel } from '@/features/bldg/components/BldgSimPanel';
-import { BldgInfoCard } from '@/features/bldg/components/BldgInfoCard';
+
+// [수정 포인트 1] Bldg 관련 컴포넌트들의 경로를 최신 구조에 맞게 수정
+import { 
+  BldgLayer, 
+  BldgSimPanel, 
+  BldgInfoCard, 
+  BuildingTag, 
+} from '@/features/bldg';
 import { BldgProvider, useBldgContext } from '@/features/bldg/context/BldgContext';
+
+// 녹지 관련 (경로 유지)
 import { GreeneryLayer } from '@/features/green-space/components/GreeneryLayer';
 import { GreenerySimPanel} from '@/features/green-space/components/GreenerySimPanel';
 import { GreeneryProvider, useGreeneryContext } from '@/features/green-space/context/GreeneryContext';
@@ -147,14 +154,9 @@ const OsmBuildingsManager: React.FC<{ terrainProvider: TerrainProvider }> = ({ t
 
         /**
          * ✅ 세슘 공식 권장 방식: Matrix4 Translation 최적화
-         * 1. 고양시 중심부의 지형 해발 고도를 샘플링합니다.
-         * 2. 해당 고도만큼 타일셋을 수직 하강시킵니다.
          */
         const centerCoords = Cartographic.fromDegrees(126.8322, 37.6583);
         
-        // 지형 타일이 완전히 로드될 때까지 기다리는 대신, 
-        // Matrix4를 이용해 타일셋의 원점을 지표면(Terrain) 높이로 오프셋 조정합니다.
-        // 스크린샷에서 확인된 오차(약 52m)를 적용하되, 수직 이동(Up/Down)을 정확히 계산합니다.
         const surface = Cartesian3.fromRadians(centerCoords.longitude, centerCoords.latitude, 0.0);
         const offset = Cartesian3.fromRadians(centerCoords.longitude, centerCoords.latitude, -53.0); // 53m 하강
         const translation = Cartesian3.subtract(offset, surface, new Cartesian3());
@@ -192,9 +194,6 @@ const OsmBuildingsManager: React.FC<{ terrainProvider: TerrainProvider }> = ({ t
 const MapContainer: React.FC<{ children?: React.ReactNode }> = ({ children }) => {
   const { currentBaseMap, showVWorld3D, vworldKey } = useMapContext();
   const [terrainProvider, setTerrainProvider] = useState<TerrainProvider | undefined>(undefined);
-
-  // ✅ 불필요한 useBldgContext(), useGreeneryContext() 호출 제거
-  // (여기서 데이터를 쓰지 않고, 자식 컴포넌트인 Layer들이 직접 Context에서 가져다 씀)
 
   useEffect(() => {
     if (!CESIUM_TOKEN) return;
@@ -235,9 +234,7 @@ const MapContainer: React.FC<{ children?: React.ReactNode }> = ({ children }) =>
 
         {children}
         
-        {/* ✅ 레이어 컴포넌트: Props 없이 렌더링
-          BldgLayer 내부에서 useBldgContext()를 호출하여 ghostBuilding 정보를 직접 가져옵니다.
-        */}
+        {/* ✅ 레이어 컴포넌트: Props 없이 렌더링 */}
         <BldgLayer />
         <GreeneryLayer />
 
@@ -245,6 +242,7 @@ const MapContainer: React.FC<{ children?: React.ReactNode }> = ({ children }) =>
       <MapControlBar />
       <BldgSimPanel />
       <BldgInfoCard />
+      <BuildingTag /> {/* [추가] 정밀 편집 태그도 렌더링 */}
       <GreenerySimPanel />
     </div>
   );

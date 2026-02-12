@@ -1,3 +1,5 @@
+import client from '@/lib/api/client';
+
 // 1. 공통/건물 타입
 import type { 
   LibraryItem, 
@@ -13,12 +15,11 @@ import type { GreeneryModel } from '../types';
 // API 구현
 // =========================================================
 
-// 건물 라이브러리 (기존 유지)
+// 건물 라이브러리 조회
 export const fetchBuildingLibrary = async (): Promise<LibraryItem[]> => {
-  const res = await fetch('/api/simulation/buildings'); 
-  if (!res.ok) throw new Error('라이브러리 로딩 실패');
+  // 응답값은 interceptor에 의해 이미 data만 반환됨
+  const rawData = await client.get<any[], any[]>('/simulation/buildings');
   
-  const rawData = await res.json();
   return rawData.map((item: any) => ({
     ...item,
     thumbnail: item.thumbnail ? `/files${item.thumbnail.replace('/files', '')}` : undefined,
@@ -29,12 +30,9 @@ export const fetchBuildingLibrary = async (): Promise<LibraryItem[]> => {
   }));
 };
 
-// 녹지 라이브러리 (GreeneryModel 사용)
+// 녹지 라이브러리 조회 (GreeneryModel 사용)
 export const fetchGreeneryLibrary = async (): Promise<GreeneryModel[]> => {
-  const res = await fetch('/api/simulation/buildings'); 
-  if (!res.ok) throw new Error('녹지 라이브러리 로딩 실패');
-  
-  const rawData = await res.json();
+  const rawData = await client.get<any[], any[]>('/simulation/buildings');
 
   return rawData.map((item: any) => {
     const cleanUrl = item.modelUrl ? item.modelUrl.replace(/^\/files/, '').replace(/^\//, '') : '';
@@ -50,27 +48,28 @@ export const fetchGreeneryLibrary = async (): Promise<GreeneryModel[]> => {
   });
 };
 
-// ... (하단 시나리오 함수들은 types.ts의 타입을 사용하므로 그대로 유지)
+// 시나리오 목록 조회
 export const fetchSceneList = async (): Promise<SceneListSummary[]> => {
-  const res = await fetch('/api/scenes');
-  if (!res.ok) throw new Error('시나리오 목록 로딩 실패');
-  return res.json();
+  return client.get<SceneListSummary[], SceneListSummary[]>('/scenes');
 };
 
+// 시나리오 저장 (GeoJSON 전송)
 export const saveScene = async (name: string, data: GeoJSONFeatureCollection): Promise<number> => {
-    // ... (기존 코드와 동일)
-    const payload = { scene_name: name, user_id: "admin", scene_data: data };
-    const res = await fetch('/api/scenes', { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify(payload) 
-    });
-    if (!res.ok) throw new Error('저장 실패');
-    return (await res.json()).scene_id;
+  const payload = { 
+    scene_name: name, 
+    user_id: "admin", // 추후 로그인 연동 시 변경
+    scene_data: data 
+  };
+  
+  const response = await client.post<
+    { scene_id: number }, 
+    { scene_id: number }
+  >('/scenes', payload);
+  
+  return response.scene_id;
 };
 
+// 시나리오 상세 로드
 export const fetchSceneDetail = async (sceneId: number): Promise<SceneResponse> => {
-  const res = await fetch(`/api/scenes/${sceneId}`);
-  if (!res.ok) throw new Error('상세 로딩 실패');
-  return res.json();
+  return client.get<SceneResponse, SceneResponse>(`/scenes/${sceneId}`);
 };

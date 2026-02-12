@@ -5,7 +5,10 @@ WORKDIR /app
 
 # 의존성 설치 (캐시 최적화)
 COPY package*.json ./
-RUN npm install
+RUN npm config set fetch-retry-maxtimeout 600000 && \
+    npm config set fetch-retry-mintimeout 10000 && \
+    npm config set registry http://registry.npmjs.org/ && \
+    npm install
 
 # 소스 복사
 COPY . .

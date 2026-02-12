@@ -7,8 +7,8 @@ import {
   Entity, ColorMaterialProperty,
   Cartographic, CallbackProperty
 } from 'cesium';
-import { useBldgContext } from '../context/BldgContext';
-import type { BuildingProps } from '../types';
+import { useBldgContext } from '../../context/BldgContext';
+import type { BuildingProps } from '../../types';
 
 const LAY_CONFIG = {
   LABEL_DIST: 8000, 
@@ -20,22 +20,31 @@ const LAY_CONFIG = {
   }
 };
 
+// GLB/GLTF 파일의 바이너리 데이터를 파싱하여 크기(Dimensions)를 추출하는 함수
 const parseGlbRaw = async (url: string) => {
   try {
     const response = await fetch(url);
     const buffer = await response.arrayBuffer();
     const dataView = new DataView(buffer);
+    
+    // Magic Number 체크 ('glTF')
     if (dataView.getUint32(0, true) !== 0x46546c67) return null; 
+    
     const chunkLength = dataView.getUint32(12, true);
     const chunkType = dataView.getUint32(16, true);
+    
+    // JSON Chunk 체크 ('JSON')
     if (chunkType !== 0x4E4F534A) return null; 
+    
     const jsonChunk = new Uint8Array(buffer, 20, chunkLength);
     const decoder = new TextDecoder("utf-8");
     const jsonString = decoder.decode(jsonChunk);
     const gltf = JSON.parse(jsonString);
+    
     let minX = Infinity, minY = Infinity, minZ = Infinity;
     let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
     let found = false;
+    
     if (gltf.accessors) {
       gltf.accessors.forEach((acc: any) => {
          if (acc.min && acc.max && acc.min.length === 3 && acc.max.length === 3) {
@@ -51,8 +60,12 @@ const parseGlbRaw = async (url: string) => {
          }
       });
     }
+    
     if (!found) return null;
+    
+    // x, y, z 크기를 구한 뒤 오름차순 정렬하여 width, depth, height 매핑
     const dims = [Math.abs(maxX - minX), Math.abs(maxY - minY), Math.abs(maxZ - minZ)].sort((a, b) => a - b);
+    
     return {
       width: parseFloat(dims[2].toFixed(2)),
       depth: parseFloat(dims[1].toFixed(2)),
@@ -91,42 +104,38 @@ const BuildingPrimitive: React.FC<BuildingPrimitiveProps> = ({
   const [detectedHeight, setDetectedHeight] = useState<number>(building.height || 0);
   const [terrainHeight, setTerrainHeight] = useState<number>(0);
 
-  // 1. [지형 높이 계산]
+  // 1. [지형 높이 계산 수정] ⚡️ 핵심 수정 사항 ⚡️
+  // OSM 건물 지붕 위로 올라가는 현상을 막기 위해 sampleHeightMostDetailed 제거
+  // 순수 지형(Terrain) 높이인 globe.getHeight만 사용합니다.
   useEffect(() => {
     if (!building.isModel) return;
-    let isMounted = true; 
-
-    const updateHeight = async () => {
+    
+    const updateHeight = () => {
         if (!scene.globe) return;
         const carto = Cartographic.fromDegrees(building.lon, building.lat);
+        // [수정] 무조건 지형 높이만 가져옵니다.
         const globeH = scene.globe.getHeight(carto) || 0;
-        
-        if (isMounted) setTerrainHeight(globeH);
-        
-        if (!isGhost) {
-             try {
-                 const updated = await scene.sampleHeightMostDetailed([carto]);
-                 if (isMounted && updated && updated[0]) {
-                     setTerrainHeight(updated[0].height || globeH);
-                 }
-             } catch (e) { }
-        }
+        setTerrainHeight(globeH);
     };
+
+    // 초기 실행
     updateHeight();
-    return () => { isMounted = false; };
-  }, [building.lon, building.lat, isGhost, building.isModel, scene]);
+
+    // 렌더링 루프마다 높이 보정 (카메라 줌인/아웃 시 지형 LOD 변경 대응)
+    const removeListener = scene.postRender.addEventListener(updateHeight);
+    return () => { removeListener(); };
+  }, [building.lon, building.lat, building.isModel, scene]);
 
 
-  // 2. [라벨 업데이트] - buildingRef 사용으로 의존성 제거
+  // 2. [라벨 업데이트]
   const updateLabel = useCallback(() => {
     if (!viewer || !labelRef.current || labelRef.current.isDestroyed() || scene.isDestroyed()) return;
     const labels = labelRef.current;
     labels.removeAll();
     
-    // Ghost 상태일 때는 라벨 표시 안 함 (선택 사항)
     if (isGhostRef.current) return; 
 
-    const b = buildingRef.current; // [변경] Ref 사용
+    const b = buildingRef.current;
     
     let currentHeight = 0;
     if (b.isModel) {
@@ -139,9 +148,8 @@ const BuildingPrimitive: React.FC<BuildingPrimitiveProps> = ({
 
     const displayH = Math.max(currentHeight, 1.0);
     
-    const carto = Cartographic.fromDegrees(b.lon, b.lat);
-    const tHeight = scene.globe.getHeight(carto) || terrainHeight || 0;
-    const labelAltitude = tHeight + (b.altitude || 0) + displayH + 1.0;
+    // [수정] 라벨 높이 계산 시에도 terrainHeight를 일관되게 사용
+    const labelAltitude = terrainHeight + (b.altitude || 0) + displayH + 2.0;
 
     try {
       labels.add({
@@ -159,13 +167,12 @@ const BuildingPrimitive: React.FC<BuildingPrimitiveProps> = ({
         disableDepthTestDistance: Number.POSITIVE_INFINITY, 
       });
     } catch (e) {}
-  }, [detectedHeight, terrainHeight, scene, viewer]); // building 제거
+  }, [detectedHeight, terrainHeight, scene, viewer]);
 
 
-  // 3. [모델(Primitive) 업데이트 루프] - buildingRef 사용
+  // 3. [모델(Primitive) 업데이트 루프]
   const updateModelPrimitive = useCallback(() => {
       if (scene.isDestroyed()) return;
-      // Ref에서 최신 값 가져옴
       const b = buildingRef.current;
       if (!b.isModel) return;
 
@@ -187,6 +194,7 @@ const BuildingPrimitive: React.FC<BuildingPrimitiveProps> = ({
       }
 
       if (primitiveRef.current && !primitiveRef.current.isDestroyed()) {
+          // [수정] 모델 높이도 terrainHeight 사용으로 통일
           const alt = (b.altitude || 0) + terrainHeight;
           const pos = Cartesian3.fromDegrees(b.lon, b.lat, alt);
           const hpr = new HeadingPitchRoll(CesiumMath.toRadians(b.rotation || 0), 0, 0);
@@ -200,23 +208,20 @@ const BuildingPrimitive: React.FC<BuildingPrimitiveProps> = ({
           primitiveRef.current.colorBlendAmount = blendAmount;
       }
       updateLabel();
-  }, [terrainHeight, scene, updateLabel]); // building, isSelected, isGhost 제거
+  }, [terrainHeight, scene, updateLabel]);
 
 
   // 4. [렌더링 루프 등록] - 모델용
   useEffect(() => {
-    // 모델인 경우에만 루프 등록
-    // building 자체가 바뀌어도 updateModelPrimitive는 안정적이므로 리스너가 끊기지 않음
     if (building.isModel) {
-        updateModelPrimitive(); // 초기 1회 실행
+        updateModelPrimitive(); 
         const removeListener = scene.postRender.addEventListener(updateModelPrimitive);
         return () => { removeListener(); };
     }
   }, [updateModelPrimitive, scene, building.isModel]);
 
 
-  // 5. [객체 생성 및 CallbackProperty 적용]
-  // 중요: 이 useEffect의 의존성 배열에서 'updateLabel' 등을 제거하거나 안정화시켜야 함.
+  // 5. [객체 생성 및 리소스 로드]
   useEffect(() => {
     if (!viewer) return;
     let cancelled = false;
@@ -237,7 +242,6 @@ const BuildingPrimitive: React.FC<BuildingPrimitiveProps> = ({
 
       // [CASE 1] 3D Model
       if (building.isModel && building.modelUrl) {
-        // 사이즈 감지는 로드 시 1회만 수행
         if (!isGhost && onSizeDetected) {
             parseGlbRaw(building.modelUrl).then(size => {
                 if (cancelled || !size) return;
@@ -256,7 +260,6 @@ const BuildingPrimitive: React.FC<BuildingPrimitiveProps> = ({
           
           primitiveRef.current = model;
           scene.primitives.add(model);
-          // 여기서 updateModelPrimitive를 한번 호출하지만, postRender 루프는 별도 useEffect에서 관리됨
           
           model.readyEvent.addEventListener(() => {
               if(!cancelled && !detectedHeight && model.boundingSphere) {
@@ -268,13 +271,13 @@ const BuildingPrimitive: React.FC<BuildingPrimitiveProps> = ({
       
       // [CASE 2] Box (Entity)
       else if (!building.isModel) {
-        // ... (기존 Entity 로직 유지 - CallbackProperty 사용하므로 안전함)
         const positionProp = new CallbackProperty(() => {
             const b = buildingRef.current;
             const h = b.height || 10;
             const altitude = b.altitude || 0;
-            
             const carto = Cartographic.fromDegrees(b.lon, b.lat);
+            
+            // 박스도 globe.getHeight만 사용하도록 통일
             const terrainH = scene.globe.getHeight(carto) || 0;
             
             const finalHeight = terrainH + altitude + (h / 2);
@@ -285,7 +288,6 @@ const BuildingPrimitive: React.FC<BuildingPrimitiveProps> = ({
             const b = buildingRef.current;
             const pos = positionProp.getValue(undefined); 
             if (!pos) return undefined;
-
             const heading = CesiumMath.toRadians(b.rotation || 0);
             const hpr = new HeadingPitchRoll(heading, 0, 0);
             return Transforms.headingPitchRollQuaternion(pos, hpr);
@@ -318,7 +320,7 @@ const BuildingPrimitive: React.FC<BuildingPrimitiveProps> = ({
         entityRef.current = entity;
         setDetectedHeight(building.height || 10);
         
-        // Entity인 경우 라벨 업데이트 리스너를 여기서 등록
+        // Entity인 경우 라벨 업데이트 리스너 등록
         const removeLabelListener = scene.postRender.addEventListener(updateLabel);
         return () => removeLabelListener();
       }
@@ -327,11 +329,7 @@ const BuildingPrimitive: React.FC<BuildingPrimitiveProps> = ({
     load();
     return () => { cancelled = true; cleanup(); };
     
-  // [중요 수정] building 전체가 아니라 식별자(id)와 모델 URL만 의존성으로 가짐
-  // updateLabel은 useCallback으로 안정화되었지만, 안전을 위해 Entity일 때만 내부에서 연결하므로 제거 가능
-  // 하지만 Entity case에서 updateLabel을 쓰므로, 아래 의존성에서 building.modelUrl과 building.id가 바뀌지 않는 한 재실행 안됨.
   }, [building.id, building.modelUrl, building.isModel, viewer, scene]); 
-  // onSizeDetected도 의존성에서 뺌 (함수가 바뀌어도 로딩을 다시 할 필요는 없음)
 
   return null;
 };
@@ -339,13 +337,13 @@ const BuildingPrimitive: React.FC<BuildingPrimitiveProps> = ({
 export const BldgLayer: React.FC = () => {
   const { viewer } = useCesium();
   
-  // 1. Props 대신 Context에서 상태 가져오기
+  // Context에서 상태 가져오기
   const { 
     buildings, 
     selectedId, 
     cursorPos, 
     ghostBuilding, 
-    updateBuilding // onUpdateBuilding 대신 updateBuilding (Context 네이밍에 맞춤)
+    updateBuilding 
   } = useBldgContext(); 
 
   if (!viewer) return null;
@@ -360,7 +358,6 @@ export const BldgLayer: React.FC = () => {
           scene={viewer.scene} 
           isSelected={b.id === selectedId} 
           isGhost={false} 
-          // Context의 update 함수 연결
           onSizeDetected={(updates) => updateBuilding?.(b.id, updates)} 
           viewer={viewer} 
         />
@@ -370,7 +367,6 @@ export const BldgLayer: React.FC = () => {
       {cursorPos && ghostBuilding && (
         <BuildingPrimitive 
           key="ghost-fixed-key"
-          // ghostBuilding에 현재 커서 위치(lat, lon) 덮어씌우기
           building={{ ...ghostBuilding, ...cursorPos }} 
           scene={viewer.scene} 
           isSelected={false} 
