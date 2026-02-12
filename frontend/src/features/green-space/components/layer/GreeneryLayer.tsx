@@ -5,7 +5,7 @@ import {
   ScreenSpaceEventType, Cartesian2, ImageMaterialProperty, Cartesian3, 
   CallbackProperty, PolygonHierarchy, ShadowMode, DistanceDisplayCondition
 } from 'cesium';
-import { useGreeneryContext } from '../context/GreeneryContext';
+import { useGreeneryContext } from '../../context/GreeneryContext';
 
 export const GreeneryLayer: React.FC = () => {
   const { viewer } = useCesium();

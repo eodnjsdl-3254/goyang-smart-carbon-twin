@@ -21,8 +21,8 @@ import {
 import { BldgProvider, useBldgContext } from '@/features/bldg/context/BldgContext';
 
 // 녹지 관련 (경로 유지)
-import { GreeneryLayer } from '@/features/green-space/components/GreeneryLayer';
-import { GreenerySimPanel} from '@/features/green-space/components/GreenerySimPanel';
+import { GreeneryLayer } from '@/features/green-space/components/layer/GreeneryLayer';
+import { GreenerySimPanel} from '@/features/green-space/components/panel/GreenerySimPanel';
 import { GreeneryProvider, useGreeneryContext } from '@/features/green-space/context/GreeneryContext';
 
 const CESIUM_TOKEN = import.meta.env.VITE_CESIUM_TOKEN;
