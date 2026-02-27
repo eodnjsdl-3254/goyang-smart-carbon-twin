@@ -1,6 +1,4 @@
-// src/features/bldg/context/BldgContext.tsx
 import React, { createContext, useContext, useCallback } from 'react';
-// Hooks 경로 확인 필수 (폴더 구조 변경 반영)
 import { useBldgLibrary } from '../hooks/logic/useBldgLibrary'; 
 import { useBldgSim } from '../hooks/logic/useBldgSim';
 import type { BldgContextType } from '../types';
@@ -31,7 +29,7 @@ export const BldgProvider: React.FC<{ children: React.ReactNode }> = ({ children
     libraryItems: lib.libraryItems,
     selectedLibItem: lib.selectedLibItem,
     
-    // [수정 완료] lib.selectBuilding -> lib.selectLibraryItem
+    // lib.selectBuilding -> lib.selectLibraryItem
     selectLibraryItem: lib.selectLibraryItem, 
     
     isLoading: lib.isLoading,

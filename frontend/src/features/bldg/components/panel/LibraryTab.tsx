@@ -1,4 +1,3 @@
-// src/features/bldg/components/panel/LibraryTab.tsx
 import React from 'react';
 import { useBuildingController } from '../../hooks/controller/useBuildingController';
 import type { SimMode } from '../../types';

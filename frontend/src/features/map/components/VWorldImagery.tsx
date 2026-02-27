@@ -1,6 +1,5 @@
 import React, { useMemo } from 'react';
 import { ImageryLayer } from 'resium';
-// [수정 핵심] WebMercatorTilingScheme을 여기서 정적으로 가져옵니다.
 import { UrlTemplateImageryProvider, Credit, WebMercatorTilingScheme } from 'cesium';
 
 type VWorldLayerType = 'Base' | 'Satellite' | 'Hybrid';

@@ -62,11 +62,6 @@ export const GreeneryLayer: React.FC = () => {
     };
   }, [viewer, isDrawing, setIsDrawing, setDrawingPoints]);
 
-  /* ❌ [삭제됨] 자동 생성 트리거 
-     이제 더블클릭 해도 바로 나무가 생기지 않습니다.
-     사용자가 패널에서 [배치 실행] 버튼을 눌러야 생성됩니다.
-  */
-
   const linePositions = new CallbackProperty(() => {
     return (isDrawing && mousePos && drawingPoints.length > 0) ? [...drawingPoints, mousePos] : drawingPoints;
   }, false);

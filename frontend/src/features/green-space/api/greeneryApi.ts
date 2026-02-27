@@ -11,10 +11,6 @@ import type {
 // 2. 녹지 전용 타입
 import type { GreeneryModel } from '../types';
 
-// =========================================================
-// API 구현
-// =========================================================
-
 // 건물 라이브러리 조회
 export const fetchBuildingLibrary = async (): Promise<LibraryItem[]> => {
   // 응답값은 interceptor에 의해 이미 data만 반환됨

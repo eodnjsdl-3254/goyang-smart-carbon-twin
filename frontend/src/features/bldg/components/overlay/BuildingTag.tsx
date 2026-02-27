@@ -2,14 +2,14 @@
 import React, { useEffect, useRef } from 'react'; // useState 제거됨
 import { useCesium } from 'resium';
 import { Cartesian3, SceneTransforms } from 'cesium';
-// [수정] Context import 추가
+// Context import 추가
 import { useBldgContext } from '../../context/BldgContext';
 
-// [수정] Props 인터페이스 제거 (더 이상 외부에서 받지 않음)
+// Props 인터페이스 제거 (더 이상 외부에서 받지 않음)
 
 export const BuildingTag: React.FC = () => {
   const { viewer } = useCesium();
-  // [수정] Context에서 선택된 건물과 수정 함수 가져오기
+  // Context에서 선택된 건물과 수정 함수 가져오기
   const { selectedBuilding, updateBuilding } = useBldgContext();
   
   const tagRef = useRef<HTMLDivElement>(null);
@@ -62,7 +62,7 @@ export const BuildingTag: React.FC = () => {
         <input 
           type="number" 
           className="w-12 bg-gray-800 border-none text-[10px] p-0.5 rounded text-right text-white outline-none focus:ring-1 focus:ring-green-500"
-          // [수정] Context 데이터 사용
+          // Context 데이터 사용
           value={selectedBuilding.height || 0}
           onChange={(e) => updateBuilding(selectedBuilding.id, { height: Number(e.target.value) })}
         />

@@ -1,4 +1,3 @@
-// src/features/green-space/components/panel/GreenerySimPanel.tsx
 import React, { useState } from 'react';
 import { OverlayCard } from '@/components/ui';
 import { useGreeneryController } from '../../hooks/controller/useGreeneryController';

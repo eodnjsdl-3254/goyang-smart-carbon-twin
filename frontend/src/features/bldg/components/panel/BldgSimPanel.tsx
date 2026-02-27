@@ -1,4 +1,3 @@
-// src/features/bldg/components/panel/BldgSimPanel.tsx
 import React, { useState } from 'react';
 import { OverlayCard } from '@/components/ui';
 import { useBuildingController } from '../../hooks/controller/useBuildingController';
@@ -12,7 +11,7 @@ export const BldgSimPanel: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'EDIT' | 'SCENARIO'>('EDIT'); 
   
-  // 🔥 모든 로직은 Controller Hook에 위임
+  // 모든 로직은 Controller Hook에 위임
   const ctrl = useBuildingController();
 
   if (!isOpen) return (

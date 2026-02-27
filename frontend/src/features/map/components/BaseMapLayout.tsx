@@ -11,7 +11,6 @@ import {
 import { MapControlBar } from '@/features/map/components/MapControlBar'; 
 import { useMapContext, MapProvider } from '@/features/map/context/MapContext';
 
-// [수정 포인트 1] Bldg 관련 컴포넌트들의 경로를 최신 구조에 맞게 수정
 import { 
   BldgLayer, 
   BldgSimPanel, 

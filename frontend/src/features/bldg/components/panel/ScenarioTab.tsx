@@ -1,4 +1,3 @@
-// src/features/bldg/components/panel/ScenarioTab.tsx
 import React, { useState, useEffect } from 'react';
 import { useBuildingController } from '../../hooks/controller/useBuildingController';
 

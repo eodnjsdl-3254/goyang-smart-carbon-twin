@@ -1,7 +1,6 @@
 import { useCallback } from 'react';
 import { Cartesian3 } from 'cesium';
 import { useCesium } from 'resium';
-// import { useState } from 'react'; // 삭제
 
 export const useMapControl = () => {
   const { viewer } = useCesium();

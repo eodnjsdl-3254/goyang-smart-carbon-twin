@@ -1,4 +1,3 @@
-// src/features/bldg/hooks/controller/useBuildingController.ts
 import { useCallback } from 'react';
 import { useBldgContext } from '../../context/BldgContext';
 import { useGreeneryContext } from '@/features/green-space';

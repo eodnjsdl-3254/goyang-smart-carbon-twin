@@ -1,4 +1,3 @@
-// src/features/bldg/hooks/logic/useBldgSim.ts
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import type { SimMode, SimInputs, BuildingProps, LibraryItem } from '../../types';
 

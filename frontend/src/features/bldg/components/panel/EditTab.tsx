@@ -1,4 +1,3 @@
-// src/features/bldg/components/panel/EditTab.tsx
 import React from 'react';
 import type { BuildingProps } from '../../types';
 import { useBuildingController } from '../../hooks/controller/useBuildingController';
