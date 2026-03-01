@@ -90,7 +90,7 @@ const BuildingPrimitive: React.FC<BuildingPrimitiveProps> = ({
   const entityRef = useRef<Entity | null>(null);
   const labelRef = useRef<LabelCollection | null>(null);
   
-  // [핵심] Ref에 최신 상태 저장 (렌더링 루프에서 사용)
+  // Ref에 최신 상태 저장 (렌더링 루프에서 사용)
   const buildingRef = useRef(building);
   const isSelectedRef = useRef(isSelected);
   const isGhostRef = useRef(isGhost);
@@ -104,7 +104,7 @@ const BuildingPrimitive: React.FC<BuildingPrimitiveProps> = ({
   const [detectedHeight, setDetectedHeight] = useState<number>(building.height || 0);
   const [terrainHeight, setTerrainHeight] = useState<number>(0);
 
-  // 1. [지형 높이 계산 수정] ⚡️ 핵심 수정 사항 ⚡️
+  // 1. [지형 높이 계산]
   // OSM 건물 지붕 위로 올라가는 현상을 막기 위해 sampleHeightMostDetailed 제거
   // 순수 지형(Terrain) 높이인 globe.getHeight만 사용합니다.
   useEffect(() => {

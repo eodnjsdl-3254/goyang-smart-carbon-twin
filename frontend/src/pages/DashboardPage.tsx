@@ -9,7 +9,6 @@ import { GreeneryLayer } from '@/features/green-space/components/layer/GreeneryL
 import { GreeneryProvider } from '@/features/green-space/context/GreeneryContext';
 import { GreenerySimPanel } from '@/features/green-space/components/panel/GreenerySimPanel';
 
-// ✅ Wrapper 불필요 (이제 간단하게 바로 사용 가능)
 const DashboardPage: React.FC = () => {
   return (
     <BaseMapLayout>
@@ -20,7 +19,7 @@ const DashboardPage: React.FC = () => {
          <BldgSimPanel />
       </BldgProvider>
 
-      {/* ✅ 녹지: viewer prop 없이 깔끔하게 사용 */}
+      {/* 녹지*/}
       <GreeneryProvider>
          <GreeneryLayer />
          <GreenerySimPanel />
