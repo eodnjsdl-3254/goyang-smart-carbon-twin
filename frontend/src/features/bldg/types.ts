@@ -1,4 +1,4 @@
-export type SimMode = 'IDLE' | 'LIBRARY' | 'CREATE' | 'RELOCATE' | 'VIEW';
+export type SimMode = 'IDLE' | 'LIBRARY' | 'CREATE' | 'RELOCATE' | 'VIEW' | 'UPLOAD' | 'CONVERT';
 
 // 건물 박스 및 라이브러리 관련 타입
 export interface LibraryItem {
@@ -124,6 +124,7 @@ export interface BldgContextType {
   
   // 라이브러리 목록에서 아이템 선택
   selectLibraryItem: (item: LibraryItem) => void; 
+  refreshLibrary: () => Promise<void>;
   
   isLoading: boolean;
   error: Error | null;

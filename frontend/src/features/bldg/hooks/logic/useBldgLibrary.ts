@@ -12,25 +12,41 @@ export const useBldgLibrary = () => {
   const [selectedLibItem, setSelectedLibItem] = useState<LibraryItem | null>(null);
 
   // 3. Fetch Data
-  useEffect(() => {
-    const loadData = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const data = await fetchBuildingLibrary();
-        setLibraryItems(data);
-      } catch (err) {
-        console.error("Failed to load library:", err);
-        setError(err instanceof Error ? err : new Error('Unknown error'));
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadData();
+  const loadData = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const data = await fetchBuildingLibrary();
+      setLibraryItems(data);
+    } catch (err) {
+      console.error("Failed to load library:", err);
+      setError(err instanceof Error ? err : new Error('Unknown error'));
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
   // 4. Handlers
+  const refreshLibrary = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const data = await fetchBuildingLibrary();
+      setLibraryItems(data);
+      return data; // 업데이트된 목록 반환
+    } catch (err) {
+      console.error("Failed to load library:", err);
+      setError(err instanceof Error ? err : new Error('Unknown error'));
+      return [];
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   // [중요] selectBuilding -> selectLibraryItem 으로 변경
   const selectLibraryItem = useCallback((item: LibraryItem) => {
     setSelectedLibItem(item);
@@ -40,6 +56,7 @@ export const useBldgLibrary = () => {
     libraryItems, 
     selectedLibItem, 
     selectLibraryItem, // 변경된 이름 내보내기
+    refreshLibrary,
     isLoading,
     error 
   };

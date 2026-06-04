@@ -1,0 +1,9 @@
+BldgLayer.tsx:253 
+ GET http://localhost/files/7fb33ce8-7f3e-4f76-8c35-71a884dcac8f.glb 404 (Not Found)
+
+BldgLayer.tsx:269 ❌ [라이브러리 로드 실패] 
+RuntimeError {name: 'RuntimeError', message: 'Failed to load model: /files/7fb33ce8-7f3e-4f76-8c…: /files/7fb33ce8-7f3e-4f76-8c35-71a884dcac8f.glb', stack: 'Original stack:\nOriginal stack:\nOriginal stack:\nun…tures/bldg/components/layer/BldgLayer.tsx:240:35)'}
+BldgLayer.tsx:269 ❌ [라이브러리 로드 실패] 
+RuntimeError {name: 'RuntimeError', message: 'Failed to load model: /files/7fb33ce8-7f3e-4f76-8c…: /files/7fb33ce8-7f3e-4f76-8c35-71a884dcac8f.glb', stack: 'Original stack:\nOriginal stack:\nOriginal stack:\nun…tures/bldg/components/layer/BldgLayer.tsx:240:35)'}
+3
+useBldgSim.ts:131 Maximum update depth exceeded. This can happen when a component calls setState inside useEffect, but useEffect either doesn't have a dependency array, or one of the dependencies changes on every render.

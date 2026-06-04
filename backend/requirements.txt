@@ -13,3 +13,4 @@ pydantic-settings>=2.1.0   # .env 환경변수 관리용
 
 # 4. Utilities
 python-dotenv>=1.0.1       # 로컬 개발시 .env 로딩
+python-multipart>=0.0.9    # 파일 업로드 처리를 위해 추가

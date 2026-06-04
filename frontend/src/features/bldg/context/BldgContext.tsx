@@ -31,6 +31,7 @@ export const BldgProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     // lib.selectBuilding -> lib.selectLibraryItem
     selectLibraryItem: lib.selectLibraryItem, 
+    refreshLibrary: lib.refreshLibrary,
     
     isLoading: lib.isLoading,
     error: lib.error,

@@ -10,10 +10,16 @@ ENV PYTHONDONTWRITEBYTECODE=1
 WORKDIR /app
 
 # 3. 시스템 패키지 설치 (중요!)
-# asyncpg나 geoalchemy 같은 DB 라이브러리는 빌드 시 gcc나 libpq가 필요할 수 있음
+# blender, assimp-utils: 3D 변환 엔진들
 RUN apt-get update && apt-get install -y \
     gcc \
     libpq-dev \
+    blender \
+    assimp-utils \
+    libxrender1 \
+    libxtst6 \
+    libxi6 \
+    libgl1 \
     && rm -rf /var/lib/apt/lists/*
 
 # 4. 의존성 설치

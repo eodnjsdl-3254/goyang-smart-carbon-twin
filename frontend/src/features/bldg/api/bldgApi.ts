@@ -40,3 +40,27 @@ export const saveScene = async (name: string, data: GeoJSONFeatureCollection): P
 export const fetchSceneDetail = async (sceneId: number): Promise<SceneResponse> => {
   return client.get<SceneResponse, SceneResponse>(`/scenes/${sceneId}`);
 };
+
+// 5. GLB 파일 업로드
+export const uploadGlb = async (file: File, name: string): Promise<any> => {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('model_name', name);
+  formData.append('model_type', 'building');
+
+  return client.post('/simulation/upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  });
+};
+
+// 6. 3DS 파일 변환 업로드
+export const convert3dsToGlb = async (files: File[], name: string): Promise<any> => {
+  const formData = new FormData();
+  files.forEach(file => formData.append('files', file));
+  formData.append('model_name', name);
+  formData.append('model_type', 'building');
+
+  return client.post('/simulation/convert', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  });
+};

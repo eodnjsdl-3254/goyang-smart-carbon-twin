@@ -6,21 +6,28 @@ export const LibraryTab: React.FC = () => {
   const { 
     mode, setMode, libraryItems, selectedLibItem, 
     startCreateModel, isLoading, error, inputs, updateInput, 
-    rotation, setRotation, handleDownloadFile 
+    rotation, setRotation, handleDownloadFile,
+    handleUploadGlbAction, handleConvert3dsAction, isProcessing
   } = useBuildingController();
 
+  const [uploadName, setUploadName] = React.useState('');
+  const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = React.useState<File[]>([]);
+
   const modeTabClass = (target: SimMode) => 
-    `flex-1 py-2 text-[11px] font-bold rounded transition-all flex items-center justify-center gap-1 ${
+    `flex-1 py-2 text-[10px] font-bold rounded transition-all flex items-center justify-center gap-1 ${
       mode === target ? 'bg-blue-600 text-white shadow-lg ring-1 ring-white/10' : 'bg-zinc-800 text-zinc-500 hover:bg-zinc-700'
     }`;
 
   return (
     <div className="animate-in fade-in slide-in-from-left-2 space-y-4">
       {/* 1. 모드 선택 버튼 */}
-      <div className="flex gap-1 p-1 bg-zinc-900/80 rounded-xl border border-zinc-800 shadow-inner">
-        <button onClick={() => setMode('IDLE')} className={modeTabClass('IDLE')}>👆 선택</button>
+      <div className="grid grid-cols-3 gap-1 p-1 bg-zinc-900/80 rounded-xl border border-zinc-800 shadow-inner">
         <button onClick={() => setMode('LIBRARY')} className={modeTabClass('LIBRARY')}>🏢 모델</button>
         <button onClick={() => setMode('CREATE')} className={modeTabClass('CREATE')}>📦 박스</button>
+        <button onClick={() => setMode('UPLOAD')} className={modeTabClass('UPLOAD')}>📁 업로드</button>
+        <button onClick={() => setMode('CONVERT')} className={modeTabClass('CONVERT')}>🔄 3DS변환</button>
+        <button onClick={() => setMode('IDLE')} className={modeTabClass('IDLE')}>👆 선택</button>
       </div>
 
       {/* 2. IDLE 모드 */}
@@ -85,6 +92,53 @@ export const LibraryTab: React.FC = () => {
              <div className="bg-indigo-900/10 p-3 rounded-2xl flex items-center gap-3 border border-indigo-500/10">
                 <span className="text-xl animate-bounce">🖱️</span>
                 <p className="text-[10px] text-indigo-400 font-bold leading-tight uppercase">지도 위를 클릭하여<br/>박스를 실시간 배치하세요</p>
+             </div>
+        </div>
+      )}
+
+      {/* 5. UPLOAD 모드 (GLB) */}
+      {mode === 'UPLOAD' && (
+        <div className="space-y-4 bg-zinc-900/50 p-4 rounded-3xl border border-zinc-800 shadow-inner animate-in zoom-in-95">
+             <div className="space-y-3">
+                <label className="text-[9px] text-zinc-500 font-black uppercase ml-1">모델 이름</label>
+                <input type="text" className="w-full bg-zinc-950 p-2.5 border border-zinc-800 rounded-xl text-xs text-white outline-none" 
+                   placeholder="예: 현대 아파트 A동" value={uploadName} onChange={e => setUploadName(e.target.value)} />
+                
+                <label className="text-[9px] text-zinc-500 font-black uppercase ml-1">GLB 파일 선택</label>
+                <input type="file" accept=".glb" className="w-full text-xs text-zinc-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-zinc-800 file:text-zinc-200"
+                   onChange={e => setSelectedFile(e.target.files?.[0] || null)} />
+
+                <button 
+                  disabled={!selectedFile || !uploadName || isProcessing}
+                  onClick={() => selectedFile && handleUploadGlbAction(selectedFile, uploadName)}
+                  className="w-full bg-blue-600 disabled:bg-zinc-800 text-white py-3 rounded-xl font-bold text-xs shadow-lg transition-all"
+                >
+                  {isProcessing ? "⏳ 업로드 중..." : "🚀 업로드 시작"}
+                </button>
+             </div>
+        </div>
+      )}
+
+      {/* 6. CONVERT 모드 (3DS) */}
+      {mode === 'CONVERT' && (
+        <div className="space-y-4 bg-zinc-900/50 p-4 rounded-3xl border border-zinc-800 shadow-inner animate-in zoom-in-95">
+             <div className="space-y-3">
+                <label className="text-[9px] text-zinc-500 font-black uppercase ml-1">모델 이름</label>
+                <input type="text" className="w-full bg-zinc-950 p-2.5 border border-zinc-800 rounded-xl text-xs text-white outline-none" 
+                   placeholder="예: 3DS 변환 건물" value={uploadName} onChange={e => setUploadName(e.target.value)} />
+                
+                <label className="text-[9px] text-zinc-500 font-black uppercase ml-1">3DS 및 텍스처 파일들</label>
+                <p className="text-[8px] text-zinc-600 mb-1 leading-tight">* .3ds 파일과 관련 이미지들을 함께 선택하세요.</p>
+                <input type="file" multiple accept=".3ds,.jpg,.png" className="w-full text-xs text-zinc-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-zinc-800 file:text-zinc-200"
+                   onChange={e => setSelectedFiles(Array.from(e.target.files || []))} />
+
+                <button 
+                  disabled={selectedFiles.length === 0 || !uploadName || isProcessing}
+                  onClick={() => handleConvert3dsAction(selectedFiles, uploadName)}
+                  className="w-full bg-purple-600 disabled:bg-zinc-800 text-white py-3 rounded-xl font-bold text-xs shadow-lg transition-all"
+                >
+                  {isProcessing ? "⏳ 변환 및 업로드 중..." : "🔄 변환 시작"}
+                </button>
              </div>
         </div>
       )}
